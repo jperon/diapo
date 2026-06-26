@@ -40,6 +40,8 @@ bool   IsKeyPressed(int key);
 int    GetCharPressed(void);
 bool   IsMouseButtonPressed(int button);
 int    GetMouseX(void);
+int    GetTouchPointCount(void);
+int    GetTouchX(void);
 
 // Images (CPU)
 Image LoadImage(const char *fileName);

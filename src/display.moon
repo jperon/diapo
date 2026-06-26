@@ -139,6 +139,14 @@ key_pressed = (k) -> C.IsKeyPressed k
 char_pressed = -> C.GetCharPressed!
 mouse_pressed = (b) -> C.IsMouseButtonPressed b
 mouse_x = -> C.GetMouseX!
+-- Nouveau toucher : front montant du nombre de points de contact (sous Wayland, un toucher
+-- ne génère pas forcément d'évènement souris). Renvoie true une seule fois par appui.
+touch_pressed = ->
+  n = C.GetTouchPointCount!
+  was = state.touch_n or 0
+  state.touch_n = n
+  n > 0 and was == 0
+touch_x = -> C.GetTouchX!
 -- Fenêtre minimisée ou masquée (cas fiablement détectables d'invisibilité).
 hidden = -> C.IsWindowState(rl.FLAG_WINDOW_MINIMIZED) or C.IsWindowHidden!
 focused = -> C.IsWindowFocused!
@@ -147,4 +155,5 @@ wait = (s) -> sleep s
 { :init, :close, :should_close, :screen, :aspect, :load_texture, :unload_texture,
   :draw_slide, :draw_debug_rect, :make_background_image, :draw_background,
   :begin_frame, :end_frame, :clear, :frame_time, :time, :key_pressed, :char_pressed,
-  :mouse_pressed, :mouse_x, :hidden, :focused, :wait, :sleep, :toggle_fullscreen, :rl }
+  :mouse_pressed, :mouse_x, :touch_pressed, :touch_x, :hidden, :focused, :wait, :sleep,
+  :toggle_fullscreen, :rl }

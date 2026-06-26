@@ -261,6 +261,10 @@ run = (paths, cfg) ->
     if display.mouse_pressed rl.MOUSE_BUTTON_LEFT
       sw = display.screen!
       if display.mouse_x! >= sw / 2 then go_next = true else go_prev = true
+    -- Écran tactile : un toucher agit comme un clic (moitié gauche/droite).
+    if display.touch_pressed!
+      sw = display.screen!
+      if display.touch_x! >= sw / 2 then go_next = true else go_prev = true
     -- On enregistre la cible désirée (la transition démarrera quand elle sera prête).
     if not fading and n > 1
       want = wrap ci + 1 if go_next
