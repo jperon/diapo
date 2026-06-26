@@ -232,9 +232,17 @@ run = (paths, cfg) ->
 
     now = real - paused_total
 
-    -- Bascule plein écran <-> fenêtré (la réadaptation au nouveau ratio est gérée par la
-    -- détection de redimensionnement ci-dessus, au tour de boucle suivant).
-    display.toggle_fullscreen! if display.key_pressed rl.KEY_F
+    -- Touches « caractère » selon la disposition active (bépo/azerty/…), via la file de
+    -- saisie Unicode : « f » bascule plein écran <-> fenêtré, « q » quitte. La réadaptation
+    -- au nouveau ratio est gérée par la détection de redimensionnement ci-dessus.
+    quit = false
+    while true
+      c = display.char_pressed!
+      break if c == 0
+      switch c
+        when 102, 70 then display.toggle_fullscreen!   -- 'f' / 'F'
+        when 113, 81 then quit = true                  -- 'q' / 'Q'
+    break if quit
 
     -- Entrées de navigation (clavier + souris ; clic gauche = moitié gauche/droite).
     go_next = display.key_pressed(rl.KEY_RIGHT) or display.key_pressed(rl.KEY_SPACE)

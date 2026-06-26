@@ -37,6 +37,7 @@ void ClearBackground(Color color);
 double GetTime(void);
 float  GetFrameTime(void);
 bool   IsKeyPressed(int key);
+int    GetCharPressed(void);
 bool   IsMouseButtonPressed(int button);
 int    GetMouseX(void);
 

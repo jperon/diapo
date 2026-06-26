@@ -111,7 +111,9 @@ taille de fenêtre mémorisée). Le cadrage s'adapte en continu à la taille de 
 ### Navigation
 
 - **Clavier** : `→` / `Espace` image suivante · `←` / `Retour arrière` image précédente ·
-  `F` bascule plein écran ↔ fenêtré · `Échap` / `Q` quitter.
+  `F` bascule plein écran ↔ fenêtré · `Échap` / `Q` quitter. Les touches *caractère*
+  (`F`, `Q`) suivent la **disposition active** (bépo, azerty…) : elles réagissent au
+  caractère réellement saisi, pas à la position physique de la touche.
 - **Souris** : clic dans la **moitié droite** de l'écran = suivante, **moitié gauche** =
   précédente.
 

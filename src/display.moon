@@ -121,6 +121,10 @@ clear       = -> C.ClearBackground BLACK
 frame_time  = -> C.GetFrameTime!
 time        = -> C.GetTime!
 key_pressed = (k) -> C.IsKeyPressed k
+-- Dépile le prochain caractère saisi (codepoint Unicode), en tenant compte de la disposition
+-- de clavier active (bépo, azerty…) — contrairement à key_pressed qui suit la touche physique.
+-- Renvoie 0 quand la file est vide.
+char_pressed = -> C.GetCharPressed!
 mouse_pressed = (b) -> C.IsMouseButtonPressed b
 mouse_x = -> C.GetMouseX!
 -- Fenêtre minimisée ou masquée (cas fiablement détectables d'invisibilité).
@@ -130,5 +134,5 @@ wait = (s) -> C.WaitTime s
 
 { :init, :close, :should_close, :screen, :aspect, :load_texture, :unload_texture,
   :draw_slide, :draw_debug_rect, :make_background_image, :draw_background,
-  :begin_frame, :end_frame, :clear, :frame_time, :time, :key_pressed,
+  :begin_frame, :end_frame, :clear, :frame_time, :time, :key_pressed, :char_pressed,
   :mouse_pressed, :mouse_x, :hidden, :focused, :wait, :toggle_fullscreen, :rl }
