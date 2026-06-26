@@ -85,7 +85,8 @@
               --set LUA_PATH "$share/src/?.lua;$share/ffi/?.lua;;" \
               --prefix LD_LIBRARY_PATH : "$share/lib:${raylib}/lib" \
               --prefix LD_PRELOAD : "$share/lib/diapo_appid.so" \
-              --set DIAPO_APP_ID diapo
+              --set DIAPO_APP_ID diapo \
+              --set SDL_TOUCH_MOUSE_EVENTS 0
 
             # Entrée de menu + icône. StartupWMClass = app_id Wayland posé par le shim,
             # pour que le gestionnaire de fenêtres associe la fenêtre à ce .desktop.

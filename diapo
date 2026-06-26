@@ -6,6 +6,9 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 export DIAPO_ROOT="$ROOT"
 export LD_LIBRARY_PATH="$ROOT/lib:${LD_LIBRARY_PATH:-}"
 export LUA_PATH="$ROOT/src/?.lua;$ROOT/ffi/?.lua;${LUA_PATH:-;}"
+# raylib backend SDL : on coupe l'émulation tactile->souris pour que le toucher ne
+# déclenche pas aussi le chemin souris (coordonnée parasite faussant le côté gauche/droite).
+export SDL_TOUCH_MOUSE_EVENTS=0
 # Shim app_id (icône + nom "diapo" dans Alt+Tab sous Wayland/GNOME).
 if [ -f "$ROOT/lib/diapo_appid.so" ]; then
   export LD_PRELOAD="$ROOT/lib/diapo_appid.so${LD_PRELOAD:+:$LD_PRELOAD}"

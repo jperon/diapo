@@ -261,7 +261,9 @@ run = (paths, cfg) ->
     if display.mouse_pressed rl.MOUSE_BUTTON_LEFT
       sw = display.screen!
       if display.mouse_x! >= sw / 2 then go_next = true else go_prev = true
-    -- Écran tactile : un toucher agit comme un clic (moitié gauche/droite).
+    -- Écran tactile : un toucher agit comme un clic (moitié gauche/droite). L'émulation
+    -- tactile->souris de SDL est désactivée (SDL_TOUCH_MOUSE_EVENTS=0), sinon le bloc souris
+    -- ci-dessus se déclencherait aussi, avec une coordonnée parasite qui fausse le côté.
     if display.touch_pressed!
       sw = display.screen!
       if display.touch_x! >= sw / 2 then go_next = true else go_prev = true
