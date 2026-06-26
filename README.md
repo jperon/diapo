@@ -29,15 +29,14 @@ nix build /chemin/vers/diapo                # produit ./result/bin/diapo
 Le flake compile lui-même `libfacedetection.so` et le shim `diapo_appid.so`, transpile le
 MoonScript en Lua, et installe un binaire `diapo` autonome (chemins des `.so`, `RAYLIB_SO`,
 `LUA_PATH` et `LD_PRELOAD` déjà câblés). Il installe aussi l'**entrée de menu** et l'**icône**
-(`share/applications/diapo.desktop`, `share/icons/hicolor/scalable/apps/diapo.svg`), donc
-aucun `install-desktop.sh` n'est nécessaire avec le flake : `diapo` apparaît dans le lanceur
-d'applications et son icône/nom dans Alt+Tab (l'app_id `diapo` du shim correspond au
-`StartupWMClass`). `nix develop` fournit l'environnement de développement (≈ `nix-shell`).
+(`share/applications/diapo.desktop`, `share/icons/hicolor/scalable/apps/diapo.svg`) : `diapo`
+apparaît dans le lanceur d'applications et son icône/nom dans Alt+Tab (l'app_id `diapo` du
+shim correspond au `StartupWMClass`). `nix develop` fournit l'environnement de développement
+(≈ `nix-shell`).
 
 Sur NixOS, l'ajouter à la configuration suffit (input du flake + paquet dans
 `environment.systemPackages`) pour avoir la commande **et** l'entrée de menu au niveau
-système. Le script `install-desktop.sh` reste utile uniquement pour une installation
-*hors* Nix (mode développement via `nix-shell`).
+système.
 
 ## Dépendances (développement)
 
@@ -88,11 +87,9 @@ nix-shell --run './diapo ~/Photos'
 
 Sous Wayland, le nom et l'icône (Alt+Tab, dock) dépendent de l'*app_id* de la fenêtre, que
 raylib ne définit pas (d'où « Inconnu » sans icône). Le lanceur précharge un petit shim
-(`lib/diapo_appid.so`) qui pose l'app_id `diapo`. Pour l'associer à un nom et une icône :
-
-```sh
-./install-desktop.sh     # installe diapo.desktop + l'icône dans ~/.local/share
-```
+(`lib/diapo_appid.so`) qui pose l'app_id `diapo`. L'installation via le flake (ou
+`environment.systemPackages` sur NixOS) fournit déjà l'entrée `diapo.desktop` et l'icône de
+même nom, que le gestionnaire de fenêtres associe à cet app_id (`StartupWMClass=diapo`).
 
 ### Économie d'énergie
 
