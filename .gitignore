@@ -1,0 +1,8 @@
+/vendor/
+/lib/
+/build/
+/testdata/
+src/*.lua
+config.lua
+/result
+/result-*

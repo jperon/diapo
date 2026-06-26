@@ -1,0 +1,120 @@
+-- Couche d'affichage raylib : fenêtre, chargement de textures, rendu d'une vue Ken Burns,
+-- et fondu (crossfade) entre deux diapositives.
+ffi = require "ffi"
+rl  = require "raylib"
+C   = rl.C
+
+WHITE = rl.Color 255, 255, 255, 255
+BLACK = rl.Color 0, 0, 0, 255
+
+state = { w: 0, h: 0 }
+
+-- Met à jour la taille (et donc l'orientation) depuis la surface réelle. Appelée à chaque
+-- frame : suit un changement de résolution ou une rotation portrait/paysage de l'écran.
+refresh_size = ->
+  w, h = C.GetScreenWidth!, C.GetScreenHeight!
+  if w > 0 and h > 0
+    state.w = w
+    state.h = h
+  state
+
+-- Ouvre la fenêtre. opts.fullscreen (def true), opts.title, opts.fps (def 60),
+-- opts.width/opts.height (taille de la fenêtre en mode fenêtré).
+init = (opts={}) ->
+  windowed = opts.fullscreen == false
+  flags = rl.FLAG_VSYNC_HINT
+  flags += rl.FLAG_WINDOW_RESIZABLE if windowed   -- fenêtre librement redimensionnable
+  C.SetConfigFlags flags
+  C.InitWindow (opts.width or 1280), (opts.height or 720), opts.title or "diapo"
+  unless windowed
+    -- En plein écran : on prend la résolution du moniteur courant.
+    mon = C.GetCurrentMonitor!
+    mw, mh = C.GetMonitorWidth(mon), C.GetMonitorHeight(mon)
+    C.SetWindowSize mw, mh if mw > 0 and mh > 0
+    C.ToggleFullscreen!
+  C.SetTargetFPS opts.fps or 60
+  C.SetExitKey rl.KEY_ESCAPE
+  -- Laisse le compositeur appliquer le plein écran / l'orientation avant de lire la taille
+  -- réelle de la surface (sinon on récupère la taille d'InitWindow, paysage par défaut).
+  for _ = 1, 4
+    C.BeginDrawing!
+    C.ClearBackground BLACK
+    C.EndDrawing!
+  refresh_size!
+  state
+
+close = -> C.CloseWindow!
+should_close = -> C.WindowShouldClose!
+screen = -> state.w, state.h
+aspect = -> state.w / state.h
+
+-- Image (CPU) -> Texture (GPU), avec filtrage bilinéaire pour un zoom lisse.
+load_texture = (img) ->
+  tex = C.LoadTextureFromImage img
+  C.SetTextureFilter tex, rl.TEXTURE_FILTER_BILINEAR
+  tex
+unload_texture = (tex) -> C.UnloadTexture tex
+
+-- Crée (côté CPU) une image de fond floutée à partir de `img`. Réduite puis floutée
+-- (flou gaussien) : bon marché et exploitable hors thread GL. L'appelant en fait une
+-- texture via load_texture et libère l'Image.
+make_background_image = (img, opts={}) ->
+  bg = ffi.new "Image[1]"
+  bg[0] = C.ImageCopy img
+  target = opts.bg_width or 320
+  if img.width > target
+    h = math.floor img.height * target / img.width + 0.5
+    C.ImageResize bg, target, math.max 1, h
+  C.ImageBlurGaussian bg, opts.bg_blur or 12
+  bg[0]
+
+-- Remplit l'écran avec la texture de fond floutée (étirée ; la distorsion est masquée
+-- par le flou). Utilisée quand l'image au premier plan ne couvre pas tout l'écran.
+draw_background = (bgtex, alpha=255) ->
+  source = rl.Rectangle 0, 0, bgtex.width, bgtex.height
+  dest   = rl.Rectangle 0, 0, state.w, state.h
+  C.DrawTexturePro bgtex, source, dest, (rl.Vector2 0, 0), 0, (rl.Color 255, 255, 255, alpha)
+
+-- Dessine une diapo selon une `view` (rectangle en coords image, pouvant être plus grand
+-- que l'image -> dézoom). L'image est mappée vers l'écran ; si elle ne le couvre pas
+-- entièrement, le fond flou `slide.bg` (s'il existe) est dessiné d'abord.
+draw_slide = (slide, view, alpha=255) ->
+  scale = state.w / view.w           -- view est au ratio écran -> scale identique en x/y
+  dx = -view.x * scale
+  dy = -view.y * scale
+  dw = slide.iw * scale
+  dh = slide.ih * scale
+  covers = dx <= 0.5 and dy <= 0.5 and dx + dw >= state.w - 0.5 and dy + dh >= state.h - 0.5
+  if not covers and slide.bg
+    draw_background slide.bg, alpha
+  source = rl.Rectangle 0, 0, slide.iw, slide.ih
+  dest   = rl.Rectangle dx, dy, dw, dh
+  C.DrawTexturePro slide.tex, source, dest, (rl.Vector2 0, 0), 0, (rl.Color 255, 255, 255, alpha)
+  dx, dy, scale
+
+-- Cadre de debug (rect image -> écran) selon la vue courante.
+draw_debug_rect = (view, rect_img, color) ->
+  scale = state.w / view.w
+  r = rl.Rectangle (rect_img.x - view.x)*scale, (rect_img.y - view.y)*scale,
+                   rect_img.w*scale, rect_img.h*scale
+  C.DrawRectangleLinesEx r, 3, color
+
+begin_frame = ->
+  refresh_size!        -- suit l'orientation/résolution courante de l'écran
+  C.BeginDrawing!
+end_frame   = -> C.EndDrawing!
+clear       = -> C.ClearBackground BLACK
+frame_time  = -> C.GetFrameTime!
+time        = -> C.GetTime!
+key_pressed = (k) -> C.IsKeyPressed k
+mouse_pressed = (b) -> C.IsMouseButtonPressed b
+mouse_x = -> C.GetMouseX!
+-- Fenêtre minimisée ou masquée (cas fiablement détectables d'invisibilité).
+hidden = -> C.IsWindowState(rl.FLAG_WINDOW_MINIMIZED) or C.IsWindowHidden!
+focused = -> C.IsWindowFocused!
+wait = (s) -> C.WaitTime s
+
+{ :init, :close, :should_close, :screen, :aspect, :load_texture, :unload_texture,
+  :draw_slide, :draw_debug_rect, :make_background_image, :draw_background,
+  :begin_frame, :end_frame, :clear, :frame_time, :time, :key_pressed,
+  :mouse_pressed, :mouse_x, :hidden, :focused, :wait, :rl }

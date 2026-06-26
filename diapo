@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Lanceur du diaporama : configure les chemins de modules et la lib native, puis exécute.
+# À utiliser dans nix-shell (raylib + luajit), ou via `nix-shell --run "./diapo <dossier>"`.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+export DIAPO_ROOT="$ROOT"
+export LD_LIBRARY_PATH="$ROOT/lib:${LD_LIBRARY_PATH:-}"
+export LUA_PATH="$ROOT/src/?.lua;$ROOT/ffi/?.lua;${LUA_PATH:-;}"
+# Shim app_id (icône + nom "diapo" dans Alt+Tab sous Wayland/GNOME).
+if [ -f "$ROOT/lib/diapo_appid.so" ]; then
+  export LD_PRELOAD="$ROOT/lib/diapo_appid.so${LD_PRELOAD:+:$LD_PRELOAD}"
+fi
+exec luajit "$ROOT/src/main.lua" "$@"
