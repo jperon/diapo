@@ -82,6 +82,25 @@
               --prefix LD_PRELOAD : "$share/lib/diapo_appid.so" \
               --set DIAPO_APP_ID diapo
 
+            # Entrée de menu + icône. StartupWMClass = app_id Wayland posé par le shim,
+            # pour que le gestionnaire de fenêtres associe la fenêtre à ce .desktop.
+            install -Dm644 assets/diapo.svg \
+              "$out/share/icons/hicolor/scalable/apps/diapo.svg"
+            mkdir -p "$out/share/applications"
+            cat > "$out/share/applications/diapo.desktop" <<EOF
+            [Desktop Entry]
+            Type=Application
+            Version=1.0
+            Name=diapo
+            GenericName=Diaporama Ken Burns
+            Comment=Diaporama automatique Ken Burns guidé par la détection de visage
+            Exec=diapo %F
+            Icon=diapo
+            Terminal=false
+            Categories=Graphics;Viewer;
+            StartupWMClass=diapo
+            EOF
+
             runHook postInstall
           '';
 

@@ -28,8 +28,16 @@ nix build /chemin/vers/diapo                # produit ./result/bin/diapo
 
 Le flake compile lui-même `libfacedetection.so` et le shim `diapo_appid.so`, transpile le
 MoonScript en Lua, et installe un binaire `diapo` autonome (chemins des `.so`, `RAYLIB_SO`,
-`LUA_PATH` et `LD_PRELOAD` déjà câblés). `nix develop` fournit l'environnement de
-développement (équivalent de `nix-shell`).
+`LUA_PATH` et `LD_PRELOAD` déjà câblés). Il installe aussi l'**entrée de menu** et l'**icône**
+(`share/applications/diapo.desktop`, `share/icons/hicolor/scalable/apps/diapo.svg`), donc
+aucun `install-desktop.sh` n'est nécessaire avec le flake : `diapo` apparaît dans le lanceur
+d'applications et son icône/nom dans Alt+Tab (l'app_id `diapo` du shim correspond au
+`StartupWMClass`). `nix develop` fournit l'environnement de développement (≈ `nix-shell`).
+
+Sur NixOS, l'ajouter à la configuration suffit (input du flake + paquet dans
+`environment.systemPackages`) pour avoir la commande **et** l'entrée de menu au niveau
+système. Le script `install-desktop.sh` reste utile uniquement pour une installation
+*hors* Nix (mode développement via `nix-shell`).
 
 ## Dépendances (développement)
 
