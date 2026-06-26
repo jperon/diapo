@@ -188,7 +188,18 @@ run = (paths, cfg) ->
   resize_debounce = 0.15       -- délai de stabilisation avant réadaptation
   fadein_t0 = nil              -- fondu d'apparition après réadaptation (temps virtuel)
 
+  -- Cadence explicite : sous Wayland natif le vsync ne bloque pas le CPU, et le WaitTime
+  -- interne de raylib fait un busy-wait qui sature un cœur. On dort donc nous-mêmes le
+  -- reste de chaque frame (nanosleep) pour tenir le FPS cible sans brûler le processeur.
+  frame_interval = 1 / (cfg.fps or 60)
+  next_frame = display.time!
+
   while not display.should_close!
+    slack = next_frame - display.time!
+    display.sleep slack if slack > 0
+    next_frame += frame_interval
+    next_frame = display.time! if next_frame < display.time!   -- évite la spirale après une pause
+
     real = display.time!
     dt = real - prev_real
     prev_real = real

@@ -4,6 +4,16 @@ ffi = require "ffi"
 rl  = require "raylib"
 C   = rl.C
 
+-- Sommeil réel (le compositeur Wayland ne bloquant pas le CPU sur le vsync, on cadence la
+-- boucle nous-mêmes ; C.WaitTime de raylib fait un busy-wait qui sature un cœur).
+ffi.cdef "struct timespec { long tv_sec; long tv_nsec; }; int nanosleep(const struct timespec *req, struct timespec *rem);"
+sleep_ts = ffi.new "struct timespec[1]"
+sleep = (s) ->
+  return if s <= 0
+  sleep_ts[0].tv_sec = math.floor s
+  sleep_ts[0].tv_nsec = math.floor (s - math.floor s) * 1e9
+  ffi.C.nanosleep sleep_ts, nil
+
 WHITE = rl.Color 255, 255, 255, 255
 BLACK = rl.Color 0, 0, 0, 255
 
@@ -25,7 +35,9 @@ init = (opts={}) ->
   state.win_w = opts.width or 1280       -- taille mémorisée pour le retour en fenêtré (touche F)
   state.win_h = opts.height or 720
   -- Toujours redimensionnable : permet de basculer plein écran <-> fenêtré à la volée.
-  flags = rl.FLAG_VSYNC_HINT + rl.FLAG_WINDOW_RESIZABLE
+  -- Pas de FLAG_VSYNC_HINT : sous Wayland natif l'échange de buffers vsync « poll » le CPU
+  -- (un cœur saturé). On laisse le vsync au compositeur et on cadence par nanosleep (slideshow).
+  flags = rl.FLAG_WINDOW_RESIZABLE
   C.SetConfigFlags flags
   C.InitWindow state.win_w, state.win_h, opts.title or "diapo"
   unless windowed
@@ -130,9 +142,9 @@ mouse_x = -> C.GetMouseX!
 -- Fenêtre minimisée ou masquée (cas fiablement détectables d'invisibilité).
 hidden = -> C.IsWindowState(rl.FLAG_WINDOW_MINIMIZED) or C.IsWindowHidden!
 focused = -> C.IsWindowFocused!
-wait = (s) -> C.WaitTime s
+wait = (s) -> sleep s
 
 { :init, :close, :should_close, :screen, :aspect, :load_texture, :unload_texture,
   :draw_slide, :draw_debug_rect, :make_background_image, :draw_background,
   :begin_frame, :end_frame, :clear, :frame_time, :time, :key_pressed, :char_pressed,
-  :mouse_pressed, :mouse_x, :hidden, :focused, :wait, :toggle_fullscreen, :rl }
+  :mouse_pressed, :mouse_x, :hidden, :focused, :wait, :sleep, :toggle_fullscreen, :rl }
