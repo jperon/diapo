@@ -103,14 +103,15 @@ rendu.
 ### Mode d'affichage
 
 Le plein écran n'est **pas** une contrainte : raylib gère le mode fenêtré tout aussi bien.
-Par défaut le diaporama est en plein écran ; `--window` (ou `fullscreen = false`) ouvre une
+Par défaut le diaporama est en plein écran ; `--window` (ou `fullscreen = false`) démarre en
 **fenêtre redimensionnable** dont la taille initiale est réglable (`window_width` /
-`window_height`). Le cadrage s'adapte en continu à la taille de la fenêtre.
+`window_height`). La touche **`F`** bascule plein écran ↔ fenêtré à la volée (retour à la
+taille de fenêtre mémorisée). Le cadrage s'adapte en continu à la taille de la fenêtre.
 
 ### Navigation
 
 - **Clavier** : `→` / `Espace` image suivante · `←` / `Retour arrière` image précédente ·
-  `Échap` / `Q` quitter.
+  `F` bascule plein écran ↔ fenêtré · `Échap` / `Q` quitter.
 - **Souris** : clic dans la **moitié droite** de l'écran = suivante, **moitié gauche** =
   précédente.
 

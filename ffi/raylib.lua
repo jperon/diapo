@@ -28,6 +28,7 @@ int  GetMonitorHeight(int monitor);
 void SetExitKey(int key);
 void SetWindowSize(int width, int height);
 void ToggleFullscreen(void);
+bool IsWindowFullscreen(void);
 
 // Dessin
 void BeginDrawing(void);
@@ -78,6 +79,6 @@ return {
   FLAG_WINDOW_MINIMIZED = 0x00000200,
   TEXTURE_FILTER_BILINEAR = 1,
   KEY_ESCAPE = 256, KEY_RIGHT = 262, KEY_LEFT = 263, KEY_SPACE = 32, KEY_Q = 81,
-  KEY_BACKSPACE = 259,
+  KEY_BACKSPACE = 259, KEY_F = 70,
   MOUSE_BUTTON_LEFT = 0, MOUSE_BUTTON_RIGHT = 1,
 }

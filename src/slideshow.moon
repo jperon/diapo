@@ -232,6 +232,10 @@ run = (paths, cfg) ->
 
     now = real - paused_total
 
+    -- Bascule plein écran <-> fenêtré (la réadaptation au nouveau ratio est gérée par la
+    -- détection de redimensionnement ci-dessus, au tour de boucle suivant).
+    display.toggle_fullscreen! if display.key_pressed rl.KEY_F
+
     -- Entrées de navigation (clavier + souris ; clic gauche = moitié gauche/droite).
     go_next = display.key_pressed(rl.KEY_RIGHT) or display.key_pressed(rl.KEY_SPACE)
     go_prev = display.key_pressed(rl.KEY_LEFT) or display.key_pressed(rl.KEY_BACKSPACE)

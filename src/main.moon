@@ -17,7 +17,7 @@ Sans <dossier>, un sélecteur de dossier graphique s'ouvre (zenity/kdialog/qarma
 Options:
   --config <fichier>   fichier de configuration Lua
                        (défaut : ./config.lua, sinon ~/.local/share/diapo/config.lua)
-  --window             mode fenêtré (au lieu du plein écran)
+  --window             démarre en mode fenêtré (touche F pour basculer ensuite)
   --no-shuffle         ordre alphabétique au lieu d'aléatoire
   --debug-faces        affiche les rectangles des visages détectés
   --keep-eyes / --no-keep-eyes  garder les yeux dans la vue (défaut : oui)

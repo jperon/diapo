@@ -22,10 +22,12 @@ refresh_size = ->
 -- opts.width/opts.height (taille de la fenêtre en mode fenêtré).
 init = (opts={}) ->
   windowed = opts.fullscreen == false
-  flags = rl.FLAG_VSYNC_HINT
-  flags += rl.FLAG_WINDOW_RESIZABLE if windowed   -- fenêtre librement redimensionnable
+  state.win_w = opts.width or 1280       -- taille mémorisée pour le retour en fenêtré (touche F)
+  state.win_h = opts.height or 720
+  -- Toujours redimensionnable : permet de basculer plein écran <-> fenêtré à la volée.
+  flags = rl.FLAG_VSYNC_HINT + rl.FLAG_WINDOW_RESIZABLE
   C.SetConfigFlags flags
-  C.InitWindow (opts.width or 1280), (opts.height or 720), opts.title or "diapo"
+  C.InitWindow state.win_w, state.win_h, opts.title or "diapo"
   unless windowed
     -- En plein écran : on prend la résolution du moniteur courant.
     mon = C.GetCurrentMonitor!
@@ -42,6 +44,18 @@ init = (opts={}) ->
     C.EndDrawing!
   refresh_size!
   state
+
+-- Bascule plein écran <-> fenêtré. Le changement de taille de surface qui en résulte est
+-- détecté par la boucle (refresh_size) qui réadapte les plans Ken Burns au nouveau ratio.
+toggle_fullscreen = ->
+  if C.IsWindowFullscreen!
+    C.ToggleFullscreen!
+    C.SetWindowSize state.win_w, state.win_h
+  else
+    mon = C.GetCurrentMonitor!
+    mw, mh = C.GetMonitorWidth(mon), C.GetMonitorHeight(mon)
+    C.SetWindowSize mw, mh if mw > 0 and mh > 0
+    C.ToggleFullscreen!
 
 close = -> C.CloseWindow!
 should_close = -> C.WindowShouldClose!
@@ -117,4 +131,4 @@ wait = (s) -> C.WaitTime s
 { :init, :close, :should_close, :screen, :aspect, :load_texture, :unload_texture,
   :draw_slide, :draw_debug_rect, :make_background_image, :draw_background,
   :begin_frame, :end_frame, :clear, :frame_time, :time, :key_pressed,
-  :mouse_pressed, :mouse_x, :hidden, :focused, :wait, :rl }
+  :mouse_pressed, :mouse_x, :hidden, :focused, :wait, :toggle_fullscreen, :rl }
