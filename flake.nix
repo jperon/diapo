@@ -16,6 +16,11 @@
       let
         pkgs = import nixpkgs { inherit system; };
 
+        # raylib sur backend SDL (et non GLFW) : SDL implémente le protocole Wayland wl_touch,
+        # ce qui fait remonter le tactile dans l'API raylib (GetTouchPointCount/GetTouchX).
+        # GLFW, lui, n'expose aucun évènement tactile sous Wayland natif.
+        raylib = pkgs.raylib.override { platform = "SDL"; };
+
         diapo = pkgs.stdenv.mkDerivation {
           pname = "diapo";
           version = "0.1.0";
@@ -30,7 +35,7 @@
 
           buildInputs = [
             pkgs.luajit
-            pkgs.raylib
+            raylib
           ];
 
           buildPhase = ''
@@ -76,9 +81,9 @@
             makeWrapper ${pkgs.luajit}/bin/luajit "$out/bin/diapo" \
               --add-flags "$share/src/main.lua" \
               --set DIAPO_ROOT "$share" \
-              --set RAYLIB_SO "${pkgs.raylib}/lib/libraylib.so" \
+              --set RAYLIB_SO "${raylib}/lib/libraylib.so" \
               --set LUA_PATH "$share/src/?.lua;$share/ffi/?.lua;;" \
-              --prefix LD_LIBRARY_PATH : "$share/lib:${pkgs.raylib}/lib" \
+              --prefix LD_LIBRARY_PATH : "$share/lib:${raylib}/lib" \
               --prefix LD_PRELOAD : "$share/lib/diapo_appid.so" \
               --set DIAPO_APP_ID diapo
 
@@ -129,10 +134,10 @@
             git
           ];
           shellHook = ''
-            export RAYLIB_SO="${pkgs.raylib}/lib/libraylib.so"
+            export RAYLIB_SO="${raylib}/lib/libraylib.so"
             export DIAPO_ROOT="$PWD"
-            export LD_LIBRARY_PATH="$PWD/lib:${pkgs.raylib}/lib:$LD_LIBRARY_PATH"
-            echo "diapo: environnement prêt (raylib ${pkgs.raylib.version}, $(luajit -v 2>&1 | head -1))"
+            export LD_LIBRARY_PATH="$PWD/lib:${raylib}/lib:$LD_LIBRARY_PATH"
+            echo "diapo: environnement prêt (raylib ${raylib.version}, $(luajit -v 2>&1 | head -1))"
           '';
         };
       });

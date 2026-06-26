@@ -35,9 +35,9 @@ init = (opts={}) ->
   state.win_w = opts.width or 1280       -- taille mémorisée pour le retour en fenêtré (touche F)
   state.win_h = opts.height or 720
   -- Toujours redimensionnable : permet de basculer plein écran <-> fenêtré à la volée.
-  -- Pas de FLAG_VSYNC_HINT : sous Wayland natif l'échange de buffers vsync « poll » le CPU
-  -- (un cœur saturé). On laisse le vsync au compositeur et on cadence par nanosleep (slideshow).
-  flags = rl.FLAG_WINDOW_RESIZABLE
+  -- FLAG_VSYNC_HINT : avec le backend SDL, le vsync Wayland bloque proprement (la frame dort,
+  -- ~5 % CPU). La cadence nanosleep du slideshow plafonne en plus à cfg.fps si < rafraîchissement.
+  flags = rl.FLAG_VSYNC_HINT + rl.FLAG_WINDOW_RESIZABLE
   C.SetConfigFlags flags
   C.InitWindow state.win_w, state.win_h, opts.title or "diapo"
   unless windowed
@@ -139,8 +139,8 @@ key_pressed = (k) -> C.IsKeyPressed k
 char_pressed = -> C.GetCharPressed!
 mouse_pressed = (b) -> C.IsMouseButtonPressed b
 mouse_x = -> C.GetMouseX!
--- Nouveau toucher : front montant du nombre de points de contact (sous Wayland, un toucher
--- ne génère pas forcément d'évènement souris). Renvoie true une seule fois par appui.
+-- Nouveau toucher : front montant du nombre de points de contact. Avec le backend SDL de
+-- raylib, le tactile Wayland (wl_touch) alimente cette API (GLFW, lui, ne la renseigne pas).
 touch_pressed = ->
   n = C.GetTouchPointCount!
   was = state.touch_n or 0

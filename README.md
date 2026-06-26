@@ -8,7 +8,9 @@ de caméra est cadré pour que les visages restent visibles et bien centrés.
 - **Détection de visage** : [libfacedetection](https://github.com/ShiqiYu/libfacedetection)
   (YuNet, C++ pur sans dépendance), interfacée par **FFI**.
 - **Affichage** : [raylib](https://www.raylib.com/) (GPU), via **FFI** ; l'effet Ken Burns
-  est produit par `DrawTexturePro` en animant le rectangle source.
+  est produit par `DrawTexturePro` en animant le rectangle source. raylib est compilé sur le
+  backend **SDL** (et non GLFW) : sous Wayland natif, seul SDL transmet le tactile (`wl_touch`)
+  et offre un vsync qui met la boucle en veille (≈ 4 % CPU au lieu de saturer un cœur).
 
 ## Installation / lancement avec Nix (flake)
 
@@ -116,6 +118,9 @@ taille de fenêtre mémorisée). Le cadrage s'adapte en continu à la taille de 
   caractère réellement saisi, pas à la position physique de la touche.
 - **Souris** : clic dans la **moitié droite** de l'écran = suivante, **moitié gauche** =
   précédente.
+- **Tactile** : un toucher agit comme un clic (moitié droite = suivante, gauche =
+  précédente). Nécessite le backend SDL de raylib (cf. ci-dessous), seul à transmettre
+  le tactile sous Wayland.
 
 La navigation interrompt l'image en cours **avec un fondu** (jamais une coupure sèche).
 L'image sortante ne s'arrête pas net : elle poursuit son mouvement **en décélérant**

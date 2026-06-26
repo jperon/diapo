@@ -11,7 +11,10 @@ Guide pour les agents (et humains) travaillant sur **diapo**, un diaporama Linux
   (YuNet, C++ pur, modèle embarqué) compilée en `lib/libfacedetection.so` via un wrapper
   `extern "C"`.
 - **Affichage** : [raylib](https://www.raylib.com/) (GPU) ; l'effet Ken Burns est produit par
-  `DrawTexturePro` en animant le rectangle source.
+  `DrawTexturePro` en animant le rectangle source. raylib est bâti sur le backend **SDL**
+  (`pkgs.raylib.override { platform = "SDL"; }` dans `flake.nix`), **pas GLFW** : sous Wayland
+  natif, GLFW ne transmet aucun évènement tactile et son vsync « polle » le CPU. SDL gère
+  `wl_touch` (→ `GetTouchPointCount`/`GetTouchX`) et un vsync qui dort (≈ 4 % CPU).
 - **Préchargement asynchrone** : un thread worker (`csrc/worker.cpp`) avec son propre
   `lua_State` décode/détecte/planifie l'image suivante ; le thread principal ne fait que
   l'upload GPU. Synchronisation par barrière mémoire (`__sync_synchronize`).
