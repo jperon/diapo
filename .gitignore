@@ -8,7 +8,7 @@ config.lua
 /result-*
 /packaging/flatpak/diapo-src.tar.gz
 /packaging/flatpak/build/
-/packaging/flatpak/.flatpak-builder/
+.flatpak-builder/
 /result-appimage
 *.AppImage
 *.flatpak

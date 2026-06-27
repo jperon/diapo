@@ -15,7 +15,9 @@ OUT="diapo-${VERSION}-${ARCH}.AppImage"
 # nix-appimage empaquette la dérivation (et sa closure) dans un AppImage unique.
 # Le bundler est câblé dans le flake (bundlers.appimage) pour garantir la reproductibilité via flake.lock.
 nix bundle --bundler ".#appimage" .#diapo -o result-appimage
-cp -L result-appimage "$OUT"
+# -f : écrase un AppImage précédent même en lecture seule (le store est read-only).
+rm -f "$OUT"
+cp -fL result-appimage "$OUT"
 chmod +x "$OUT"
 rm -f result-appimage
 echo ">> $OUT"
