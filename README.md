@@ -93,9 +93,18 @@ nix-shell --run './diapo ~/Photos'
   --config <fichier>   fichier de configuration Lua (voir config.example.lua)
                        défaut : ./config.lua, sinon ~/.local/share/diapo/config.lua
   --window             mode fenêtré
-  --no-shuffle         ordre alphabétique
+  --no-shuffle         ordre déterministe (par défaut alphabétique ; voir --order)
+  --order <liste>      priorité d'ordonnancement (implique --no-shuffle), critères
+                       séparés par des virgules parmi : dossier, exif, similarite
+                       (ex. dossier,similarite = parcours visuellement fluide par dossier)
+  --detect-rotated     détecte aussi sur ±90° même si un visage est déjà trouvé (plus lent ;
+                       utile pour les dossiers mêlant photos à l'endroit et tournées)
   --debug-faces        affiche les rectangles des visages détectés
   --keep-eyes / --no-keep-eyes  garder les yeux des sujets dans la vue (défaut : oui)
+  --no-face-focus      cadre tous les visages à la fois (défaut : zoome sur un seul visage,
+                       tiré au hasard à chaque passage de l'image)
+  --face-delta-max <n> écart de score maximal sous le meilleur visage pour rester éligible au
+                       tirage (0 = illimité ; ex. 12 : meilleur à 93 → un visage à 80 est ignoré)
   --zoom-out <f>       dézoom max au-delà de l'image (ex. 1.3) avec fond flou autour
   --zoom-max <f>       magnification max de la vue serrée (0 = pas de limite)
   --zoom-min <f>       magnification min de la vue large (plancher)

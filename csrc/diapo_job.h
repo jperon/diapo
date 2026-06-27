@@ -7,7 +7,9 @@
 #define DIAPO_MAX_FACES 64
 
 typedef struct {
-  int    state;          // 0 idle, 1 requête, 2 prêt, 3 erreur, 9 quitter
+  int    state;          // 0 idle, 1 requête, 2 prêt, 3 erreur
+  int    quit;           // 1 : demande d'arrêt (champ distinct de state, jamais écrasé par
+                         // le worker -> pas de course entre la fin d'un job et l'arrêt)
   char   path[4096];
 
   // Paramètres d'entrée (remplis par le thread principal)
@@ -15,11 +17,14 @@ typedef struct {
   int    reverse;
   int    detect_width;
   int    min_score;
+  int    rotate;         // 1 : tente aussi la détection sur ±90°
   double margin;
   double zoom_out;
   double zoom_max;
   double zoom_min;
   int    keep_eyes;
+  int    face_focus;     // 1 : ne cadrer qu'un seul visage (tiré au hasard par le worker)
+  int    face_delta_max; // écart de score max sous le meilleur pour rester éligible (0 = illimité)
   int    make_bg;
   int    bg_width;
   int    bg_blur;
@@ -35,7 +40,8 @@ typedef struct {
   double finish_x, finish_y, finish_w, finish_h;
 
   int    nfaces;
-  float  faces[DIAPO_MAX_FACES * 4];   // x,y,w,h par visage (pour le mode debug)
+  int    focus;          // index (1-based) du visage cadré serré, 0 = tous (sortie worker)
+  float  faces[DIAPO_MAX_FACES * 5];   // x,y,w,h,score par visage (pour le mode debug)
 } DiapoJob;
 
 #endif

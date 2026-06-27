@@ -3,6 +3,7 @@
 /build/
 /testdata/
 src/*.lua
+tests/*.lua
 config.lua
 /result
 /result-*

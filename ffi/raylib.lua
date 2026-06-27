@@ -63,6 +63,11 @@ void      SetTextureFilter(Texture2D texture, int filter);
 void      DrawTexturePro(Texture2D texture, Rectangle source, Rectangle dest,
                          Vector2 origin, float rotation, Color tint);
 void      DrawRectangleLinesEx(Rectangle rec, float lineThick, Color color);
+void      DrawRectangle(int posX, int posY, int width, int height, Color color);
+
+// Texte (police par défaut)
+void      DrawText(const char *text, int posX, int posY, int fontSize, Color color);
+int       MeasureText(const char *text, int fontSize);
 ]]
 
 local C = ffi.load(os.getenv("RAYLIB_SO") or "raylib")

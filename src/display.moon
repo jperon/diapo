@@ -148,12 +148,23 @@ draw_slide = (slide, view, alpha=255) ->
   C.DrawTexturePro slide.tex, source, dest, (rl.Vector2 0, 0), 0, (rl.Color 255, 255, 255, alpha)
   dx, dy, scale
 
--- Cadre de debug (rect image -> écran) selon la vue courante.
-draw_debug_rect = (view, rect_img, color) ->
+-- Cadre de debug (rect image -> écran) selon la vue courante. `label` (optionnel, p. ex. le
+-- score de détection) est dessiné au-dessus du cadre, sur un fond sombre pour la lisibilité.
+draw_debug_rect = (view, rect_img, color, label) ->
   scale = state.w / view.w
-  r = rl.Rectangle to_fb (rect_img.x - view.x)*scale, (rect_img.y - view.y)*scale,
-                   rect_img.w*scale, rect_img.h*scale
+  x, y = (rect_img.x - view.x)*scale, (rect_img.y - view.y)*scale
+  r = rl.Rectangle to_fb x, y, rect_img.w*scale, rect_img.h*scale
   C.DrawRectangleLinesEx r, 3, color
+  if label
+    sx = state.fw > 0 and state.fw / state.w or 1   -- canevas logique -> pixels framebuffer
+    sy = state.fh > 0 and state.fh / state.h or 1
+    fs = math.floor 40 * sy
+    tx = math.floor x * sx
+    ty = math.floor(y * sy) - fs - 4
+    ty = math.floor(y * sy) + 4 if ty < 0           -- sous le bord haut si pas la place dessus
+    tw = C.MeasureText label, fs
+    C.DrawRectangle tx, ty, tw + 6, fs + 4, (rl.Color 0, 0, 0, 180)
+    C.DrawText label, tx + 3, ty + 2, fs, color
 
 begin_frame = ->
   refresh_size!        -- suit l'orientation/résolution courante de l'écran

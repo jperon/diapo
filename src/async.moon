@@ -43,11 +43,14 @@ submit = (path, cfg, reverse, aspect) ->
   j.reverse      = reverse and 1 or 0
   j.detect_width = cfg.detect_width
   j.min_score    = cfg.min_score
+  j.rotate       = cfg.detect_rotated and 1 or 0
   j.margin       = cfg.margin
   j.zoom_out     = cfg.zoom_out or 1.0
   j.zoom_max     = cfg.zoom_max or 0
   j.zoom_min     = cfg.zoom_min or 0
   j.keep_eyes    = cfg.keep_eyes and 1 or 0
+  j.face_focus   = (cfg.face_focus != false) and 1 or 0
+  j.face_delta_max = cfg.face_delta_max or 0
   j.make_bg      = (cfg.background == "blur" and (cfg.zoom_out or 1) > 1) and 1 or 0
   j.bg_width     = cfg.bg_width
   j.bg_blur      = cfg.bg_blur
@@ -86,8 +89,9 @@ finalize = (cfg) ->
 
   faces = {}
   for i = 1, j.nfaces
-    b = (i - 1) * 4
-    faces[i] = { x: j.faces[b+0], y: j.faces[b+1], w: j.faces[b+2], h: j.faces[b+3] }
+    b = (i - 1) * 5
+    faces[i] = { x: j.faces[b+0], y: j.faces[b+1], w: j.faces[b+2], h: j.faces[b+3],
+                 score: j.faces[b+4] }
 
   sr = { x: j.start_x, y: j.start_y, w: j.start_w, h: j.start_h }
   er = { x: j.finish_x, y: j.finish_y, w: j.finish_w, h: j.finish_h }
@@ -101,7 +105,10 @@ finalize = (cfg) ->
     free_x: sr.w > j.img_w + 0.5 or er.w > j.img_w + 0.5
     free_y: sr.h > j.img_h + 0.5 or er.h > j.img_h + 0.5
 
-  slide = { :tex, :bg, iw: j.img_w, ih: j.img_h, :faces, :plan,
+  -- focus = visage cadré choisi par le worker (0 = tous) ; mémorisé pour les recalculs
+  -- (redimensionnement) afin que le visage cadré ne change pas en cours de diapo.
+  focus = j.focus > 0 and j.focus or nil
+  slide = { :tex, :bg, iw: j.img_w, ih: j.img_h, :faces, :plan, :focus,
             t0: display.time!, reverse: j.reverse != 0 }
   reset!
   slide

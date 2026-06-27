@@ -22,6 +22,12 @@ prepare = (path, cfg, reverse) ->
   faces = facedetect.detect_image rl, img[0],
     detect_width: cfg.detect_width
     min_score: cfg.min_score
+    rotate: cfg.detect_rotated
+
+  -- Plusieurs visages : on en tire un seul à cadrer (sauf si face_focus désactivé). Mémorisé
+  -- dans la diapo pour rester stable lors d'un recalcul (redimensionnement).
+  focus = (cfg.face_focus != false and #faces > 1) and
+    facedetect.weighted_index(faces, cfg.face_delta_max) or nil
 
   tex = display.load_texture img[0]
   iw, ih = img[0].width, img[0].height
@@ -43,17 +49,31 @@ prepare = (path, cfg, reverse) ->
     zoom_max: cfg.zoom_max
     zoom_min: cfg.zoom_min
     keep_eyes: cfg.keep_eyes
+    focus: focus
 
-  { :path, :tex, :bg, :iw, :ih, :faces, :plan, t0: display.time!, :reverse }
+  { :path, :tex, :bg, :iw, :ih, :faces, :plan, :focus, t0: display.time!, :reverse }
 
 unload_slide = (s) ->
   return unless s
   display.unload_texture s.tex
   display.unload_texture s.bg if s.bg
 
-run = (paths, cfg) ->
+-- `refresh` (facultatif) : fonction renvoyant une nouvelle liste ordonnée de chemins (ou
+-- nil/vide si le dossier est devenu vide). Appelée en fin de cycle pour intégrer les
+-- images ajoutées/supprimées sans relancer l'application.
+run = (paths, cfg, refresh) ->
   return if #paths == 0
   n = #paths
+  math.randomseed os.time! * 1000 + math.floor(os.clock! * 1000) % 1000   -- choix du visage
+
+  -- Réactualise `paths`/`n` depuis `refresh()`. On ignore un résultat vide (on ne se vide
+  -- pas tout seul si le dossier a été momentanément purgé).
+  refresh_paths = ->
+    return unless refresh
+    fresh = refresh!
+    if fresh and #fresh > 0
+      paths = fresh
+      n = #paths
   fade = cfg.fade
   dur  = cfg.duration
   motion_dur = dur / (cfg.speed or 1)
@@ -96,7 +116,13 @@ run = (paths, cfg) ->
 
   preload_next = ->
     return if nxt or submitted or n < 2
-    nxt_i = wrap ci + 1
+    -- Fin de cycle : la suivante reboucle sur la première -> on réactualise la liste
+    -- d'abord, puis on précharge la première image du nouveau cycle.
+    if wrap(ci + 1) == 1
+      refresh_paths!
+      nxt_i = 1
+    else
+      nxt_i = wrap ci + 1
     if use_async
       async.submit paths[nxt_i], cfg, rev_for(nxt_i), display.aspect!
       submitted = true
@@ -127,6 +153,7 @@ run = (paths, cfg) ->
       zoom_max: cfg.zoom_max
       zoom_min: cfg.zoom_min
       keep_eyes: cfg.keep_eyes
+      focus: s.focus
 
   begin_transition = (to, to_i, now) ->
     rebuild_plan to                 -- la diapo entrante adopte le ratio d'écran courant
@@ -313,7 +340,8 @@ run = (paths, cfg) ->
       display.draw_slide cur, view, alpha
       if cfg.debug_faces
         for f in *cur.faces
-          display.draw_debug_rect view, f, debug_color
+          label = f.score and tostring math.floor(f.score + 0.5)
+          display.draw_debug_rect view, f, debug_color, label
 
     display.end_frame!
 
@@ -321,7 +349,10 @@ run = (paths, cfg) ->
     -- navigation manuelle est en cours de service, qui a la priorité).
     if not fading and not want and elapsed >= dur
       if n == 1
-        cur_start = now                 -- une seule image : on relance le mouvement
+        -- Une seule image : fin de « cycle » à chaque passage -> on tente un rafraîchissement
+        -- (un dossier démarré à 1 image peut ainsi récupérer les ajouts), sinon on relance.
+        refresh_paths!
+        if n > 1 then preload_next! else cur_start = now
       elseif nxt
         t, ti = nxt, nxt_i
         nxt = nil

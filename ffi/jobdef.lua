@@ -5,17 +5,21 @@ local ffi = require("ffi")
 ffi.cdef[[
 typedef struct {
   int    state;
+  int    quit;
   char   path[4096];
 
   double aspect;
   int    reverse;
   int    detect_width;
   int    min_score;
+  int    rotate;
   double margin;
   double zoom_out;
   double zoom_max;
   double zoom_min;
   int    keep_eyes;
+  int    face_focus;
+  int    face_delta_max;
   int    make_bg;
   int    bg_width;
   int    bg_blur;
@@ -29,7 +33,8 @@ typedef struct {
   double finish_x, finish_y, finish_w, finish_h;
 
   int    nfaces;
-  float  faces[256];
+  int    focus;
+  float  faces[320];
 } DiapoJob;
 ]]
 

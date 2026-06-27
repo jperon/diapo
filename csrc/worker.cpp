@@ -75,7 +75,7 @@ DIAPO_API DiapoJob *diapo_worker_job(DiapoWorker *w) {
 DIAPO_API void diapo_worker_stop(DiapoWorker *w) {
   if (!w) return;
   if (w->started) {
-    __atomic_store_n(&w->job.state, 9, __ATOMIC_RELEASE);
+    __atomic_store_n(&w->job.quit, 1, __ATOMIC_RELEASE);
     pthread_join(w->thread, NULL);
   }
   free(w);

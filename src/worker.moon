@@ -19,6 +19,9 @@ display    = require "display"   -- pour make_background_image (CPU uniquement)
 -- DIAPO_JOB est une lightuserdata posée par le C : pointeur sur la struct partagée.
 job = ffi.cast "DiapoJob *", DIAPO_JOB
 
+-- Amorçage du tirage aléatoire (choix du visage cadré quand il y en a plusieurs).
+math.randomseed os.time! * 1000 + math.floor(os.clock! * 1000) % 1000
+
 process = ->
   facedetect.membar!          -- acquire : voir les entrées publiées par le thread principal
   path = ffi.string job.path
@@ -34,6 +37,12 @@ process = ->
   faces = facedetect.detect_image rl, img[0],
     detect_width: job.detect_width
     min_score: job.min_score
+    rotate: job.rotate != 0
+
+  -- Choix du visage cadré serré (un seul, au hasard) si l'option est active et >1 visage.
+  focus = (job.face_focus != 0 and #faces > 1) and
+    facedetect.weighted_index(faces, job.face_delta_max) or 0
+  job.focus = focus
 
   iw, ih = img[0].width, img[0].height
   plan = kenburns.plan iw, ih, faces,
@@ -44,6 +53,7 @@ process = ->
     zoom_max: job.zoom_max
     zoom_min: job.zoom_min
     keep_eyes: job.keep_eyes != 0
+    focus: focus > 0 and focus or nil
 
   -- Fond flou éventuel (Image CPU ; on transmet la propriété des pixels au thread principal)
   if job.make_bg != 0
@@ -58,11 +68,12 @@ process = ->
   job.nfaces = n
   for i = 1, n
     f = faces[i]
-    b = (i - 1) * 4
+    b = (i - 1) * 5
     job.faces[b+0] = f.x
     job.faces[b+1] = f.y
     job.faces[b+2] = f.w
     job.faces[b+3] = f.h
+    job.faces[b+4] = f.score or 0
 
   -- Plan
   s, e = plan.start, plan.finish
@@ -76,8 +87,10 @@ process = ->
   facedetect.membar!   -- release : rend tous les résultats visibles AVANT le drapeau
   job.state = 2        -- publié en dernier
 
--- Boucle principale du worker.
-while job.state != 9
+-- Boucle principale du worker. La sortie est commandée par `job.quit` (champ distinct de
+-- `state`) : ainsi la publication d'un résultat (state=2) en fin de job ne peut pas écraser
+-- la demande d'arrêt, ce qui bloquait le join du thread principal (image figée à la sortie).
+while job.quit == 0
   if job.state == 1
     ok, err = pcall process
     unless ok

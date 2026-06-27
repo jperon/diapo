@@ -2,6 +2,7 @@
 -- Usage : luajit src/main.lua <dossier> [--config fichier.lua] [options]
 config    = require "config"
 scanner   = require "scanner"
+order     = require "order"
 display   = require "display"
 slideshow = require "slideshow"
 picker    = require "picker"
@@ -18,9 +19,14 @@ Options:
   --config <fichier>   fichier de configuration Lua
                        (défaut : ./config.lua, sinon ~/.local/share/diapo/config.lua)
   --window             démarre en mode fenêtré (touche F pour basculer ensuite)
-  --no-shuffle         ordre alphabétique au lieu d'aléatoire
+  --no-shuffle         ordre déterministe au lieu d'aléatoire (voir --order)
+  --order <liste>      priorité d'ordonnancement (implique --no-shuffle), p. ex.
+                       dossier,exif,similarite (critères : dossier, exif, similarite)
+  --detect-rotated     détecte aussi sur ±90° même si un visage est trouvé (plus lent)
   --debug-faces        affiche les rectangles des visages détectés
   --keep-eyes / --no-keep-eyes  garder les yeux dans la vue (défaut : oui)
+  --no-face-focus      cadre tous les visages à la fois (défaut : un seul, tiré au hasard)
+  --face-delta-max <n> écart de score max sous le meilleur visage pour rester éligible (0 = illimité)
   --zoom-out <f>       dézoom max au-delà de l'image (ex. 1.3 ; fond flou)
   --zoom-max <f>       magnification max de la vue serrée (0 = pas de limite)
   --zoom-min <f>       magnification min de la vue large (plancher)
@@ -48,9 +54,18 @@ parse_args = (argv) ->
         opts.config = argv[i]
       when "--window"      then opts.overrides.fullscreen = false
       when "--no-shuffle"  then opts.overrides.shuffle = false
+      when "--order"
+        i += 1
+        opts.overrides.shuffle = false
+        opts.overrides.order = [c for c in (argv[i] or "")\gmatch "[^,]+"]
       when "--debug-faces" then opts.overrides.debug_faces = true
+      when "--detect-rotated" then opts.overrides.detect_rotated = true
       when "--keep-eyes"   then opts.overrides.keep_eyes = true
       when "--no-keep-eyes" then opts.overrides.keep_eyes = false
+      when "--no-face-focus" then opts.overrides.face_focus = false
+      when "--face-delta-max"
+        i += 1
+        opts.overrides.face_delta_max = tonumber argv[i]
       when "--no-blur"     then opts.overrides.background = "black"
       when "--no-bounce"   then opts.overrides.bounce = false
       when "--pause-unfocused" then opts.overrides.pause_unfocused = true
@@ -101,8 +116,15 @@ main = (argv) ->
   cfg = config.load opts.config
   cfg[k] = v for k, v in pairs opts.overrides
 
-  paths = scanner.scan opts.dir, shuffle: cfg.shuffle
-  if #paths == 0
+  -- (Re)liste et ordonne le dossier. Sert au démarrage et au rafraîchissement en fin de
+  -- cycle (récupère les images ajoutées/supprimées sans relancer l'application).
+  list_images = ->
+    ps, m = scanner.scan opts.dir
+    return nil if #ps == 0
+    order.order ps, cfg, m
+
+  paths = list_images!
+  if not paths
     io.stderr\write "diapo: aucune image trouvée dans #{opts.dir}\n"
     os.exit 1
   print "diapo: #{#paths} image(s), démarrage…"
@@ -112,7 +134,7 @@ main = (argv) ->
   sw, sh = display.screen!
   orient = sw >= sh and "paysage" or "portrait"
   print "diapo: écran #{sw}×#{sh} (#{orient})"
-  ok, err = pcall slideshow.run, paths, cfg
+  ok, err = pcall slideshow.run, paths, cfg, list_images
   display.close!
   unless ok
     io.stderr\write "diapo: erreur — #{err}\n"

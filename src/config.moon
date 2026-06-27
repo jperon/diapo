@@ -8,14 +8,23 @@ defaults =
   fps:         60
   pause_hidden:    true   -- met le rendu en pause si la fenêtre est minimisée/masquée
   pause_unfocused: false  -- pause aussi quand la fenêtre n'a pas le focus (économie agressive)
-  shuffle:     true     -- ordre aléatoire
+  shuffle:     true     -- ordre aléatoire (prioritaire sur `order`)
+  order:       { "dossier" }  -- si shuffle=false : priorité d'ordonnancement
+                              -- ("dossier", "exif", "similarite" ; cf config.example.lua)
   recursive:   true
   detect_width: 480     -- largeur de travail pour la détection (px)
   min_score:   70       -- seuil de confiance des visages
+  detect_rotated: false -- tente aussi la détection sur ±90° même si un visage est trouvé
+                        -- (utile pour les photos mêlant orientations ; plus lent)
   margin:      0.35     -- marge autour des visages pour le cadrage serré
   alternate:   true     -- alterne zoom-in / zoom-out d'une image à l'autre
   debug_faces: false    -- dessine les rectangles de visages détectés
   keep_eyes:   true     -- garde toujours les yeux des sujets dans la vue
+  face_focus:  true     -- plusieurs visages : cadre sur un seul (tiré au hasard à chaque
+                        -- passage, pondéré par le score) ; false = englobe tous (groupe)
+  face_delta_max: 9     -- écart de score max sous le meilleur visage pour rester éligible
+                        -- au tirage (0 = illimité ; ex. 9 : si le meilleur est à 93, un
+                        -- visage à 80 est ignoré)
   speed:       1.0      -- vitesse de l'effet (1 = une traversée par durée d'affichage)
   bounce:      true     -- aller-retour si l'affichage dure plus que le mouvement
   easing:      2.0      -- accél./décél. : 1 = linéaire, 2 = doux, >2 = marqué

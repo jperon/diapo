@@ -81,13 +81,19 @@ eye_points = (faces) ->
 --   opts.reverse   alterne le sens (zoom-in <-> zoom-out)
 --   opts.zoom_out  >1 autorise un point de vue plus large que l'image (fond flou autour)
 --   opts.keep_eyes garantit que les yeux restent dans la vue tout au long du mouvement
+--   opts.focus     index (1-based) du seul visage à cadrer serré (sinon : tous). La vue
+--                  large reste l'image entière (tout le monde visible au départ).
 plan = (img_w, img_h, faces, opts={}) ->
   aspect   = opts.aspect or (16/9)
   margin   = opts.margin or 0.35
   zoom_out = opts.zoom_out or 1.0
 
+  -- Sous-ensemble cadré serré : un seul visage si `focus` désigne un visage existant,
+  -- sinon tous. (Sans effet s'il n'y a qu'un visage.)
+  sel = (opts.focus and faces[opts.focus]) and { faces[opts.focus] } or faces
+
   wide = full_rect img_w, img_h, aspect
-  bbox = faces_bbox faces
+  bbox = faces_bbox sel
 
   -- Point de vue large : éventuellement plus grand que l'image (dézoom + fond flou).
   -- Centré sur le centre de l'image ; non clampé aux bornes si zoom_out > 1.
@@ -147,7 +153,7 @@ plan = (img_w, img_h, faces, opts={}) ->
   -- points des yeux. La vue serrée est ensuite reclampée dans l'image ; la vue large
   -- (potentiellement hors image en mode zoom_out) ne l'est pas.
   if opts.keep_eyes
-    eyes = eye_points faces
+    eyes = eye_points sel
     if #eyes > 0
       tight = clamp_rect (expand_to_contain tight, eyes, aspect), img_w, img_h
       wide_view = expand_to_contain wide_view, eyes, aspect
