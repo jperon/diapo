@@ -1,0 +1,79 @@
+name: release
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Créer la release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+
+  appimage:
+    needs: release
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Construire l'AppImage
+        run: packaging/appimage/build.sh ${{ matrix.arch }}
+      - name: Attacher à la release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: diapo-*-${{ matrix.arch }}.AppImage
+
+  flatpak:
+    needs: release
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Générer le tarball source (.lua transpilés)
+        run: packaging/flatpak/make-src-tarball.sh
+      - name: Installer flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub \
+            https://flathub.org/repo/flathub.flatpakrepo
+      - name: Build + export du bundle
+        working-directory: packaging/flatpak
+        run: |
+          VERSION="$(nix eval --raw "$GITHUB_WORKSPACE#diapo.version")"
+          flatpak-builder --user --install-deps-from=flathub \
+            --repo=repo --force-clean build io.github.jperon.diapo.yml
+          flatpak build-bundle repo \
+            "$GITHUB_WORKSPACE/diapo-${VERSION}-${{ matrix.arch }}.flatpak" \
+            io.github.jperon.diapo
+      - name: Attacher à la release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: diapo-*-${{ matrix.arch }}.flatpak
