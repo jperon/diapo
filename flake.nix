@@ -132,6 +132,8 @@
           program = "${diapo}/bin/diapo";
         };
 
+        bundlers.appimage = nix-appimage.bundlers.${system}.default;
+
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             luajit
