@@ -26,7 +26,7 @@ Guide pour les agents (et humains) travaillant sur **diapo**, un diaporama Linux
 | `src/*.moon` | sources MoonScript (seules à éditer ; les `.lua` sont générés) |
 | `ffi/*.lua` | déclarations `ffi.cdef` (raylib, struct `DiapoJob`) — écrites à la main |
 | `csrc/*.cpp`, `*.h` | wrapper libfacedetection, worker async, shim app_id |
-| `assets/diapo.svg` | icône |
+| `assets/io.github.jperon.diapo.svg` | icône |
 | `build.sh` | compile les `.so` + `moonc src/*.moon` |
 | `flake.nix` | `nix run`/`nix build` ; build reproductible + `.desktop` + icône |
 | `diapo` | lanceur (mode développement, hors Nix) |

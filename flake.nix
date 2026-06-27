@@ -88,12 +88,14 @@
               --set DIAPO_APP_ID diapo \
               --set SDL_TOUCH_MOUSE_EVENTS 0
 
-            # Entrée de menu + icône. StartupWMClass = app_id Wayland posé par le shim,
-            # pour que le gestionnaire de fenêtres associe la fenêtre à ce .desktop.
-            install -Dm644 assets/diapo.svg \
-              "$out/share/icons/hicolor/scalable/apps/diapo.svg"
+            # Entrée de menu + icône + AppStream, nommées en reverse-DNS
+            # (io.github.jperon.diapo) pour la conformité Flatpak/Flathub.
+            install -Dm644 assets/io.github.jperon.diapo.svg \
+              "$out/share/icons/hicolor/scalable/apps/io.github.jperon.diapo.svg"
+            install -Dm644 assets/io.github.jperon.diapo.metainfo.xml \
+              "$out/share/metainfo/io.github.jperon.diapo.metainfo.xml"
             mkdir -p "$out/share/applications"
-            cat > "$out/share/applications/diapo.desktop" <<EOF
+            cat > "$out/share/applications/io.github.jperon.diapo.desktop" <<EOF
             [Desktop Entry]
             Type=Application
             Version=1.0
@@ -101,7 +103,7 @@
             GenericName=Diaporama Ken Burns
             Comment=Diaporama automatique Ken Burns guidé par la détection de visage
             Exec=diapo %F
-            Icon=diapo
+            Icon=io.github.jperon.diapo
             Terminal=false
             Categories=Graphics;Viewer;
             StartupWMClass=diapo
