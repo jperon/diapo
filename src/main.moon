@@ -21,7 +21,7 @@ Options:
   --window             démarre en mode fenêtré (touche F pour basculer ensuite)
   --no-shuffle         ordre déterministe au lieu d'aléatoire (voir --order)
   --order <liste>      priorité d'ordonnancement (implique --no-shuffle), p. ex.
-                       dossier,exif,similarite (critères : dossier, exif, similarite)
+                       folder,exif,similarity (critères : folder, exif, similarity)
   --detect-rotated     détecte aussi sur ±90° même si un visage est trouvé (plus lent)
   --debug-faces        affiche les rectangles des visages détectés
   --keep-eyes / --no-keep-eyes  garder les yeux dans la vue (défaut : oui)
@@ -118,12 +118,14 @@ main = (argv) ->
 
   -- (Re)liste et ordonne le dossier. Sert au démarrage et au rafraîchissement en fin de
   -- cycle (récupère les images ajoutées/supprimées sans relancer l'application).
+  -- Renvoie (paths ordonnés, overrides) ou nil si le dossier est vide. `overrides` mappe
+  -- chemin -> visages déclarés à la main (.diapo) ; transmis tel quel au diaporama.
   list_images = ->
-    ps, m = scanner.scan opts.dir
+    ps, m, overrides = scanner.scan opts.dir
     return nil if #ps == 0
-    order.order ps, cfg, m
+    (order.order ps, cfg, m), overrides
 
-  paths = list_images!
+  paths, overrides = list_images!
   if not paths
     io.stderr\write "diapo: aucune image trouvée dans #{opts.dir}\n"
     os.exit 1
@@ -134,7 +136,7 @@ main = (argv) ->
   sw, sh = display.screen!
   orient = sw >= sh and "paysage" or "portrait"
   print "diapo: écran #{sw}×#{sh} (#{orient})"
-  ok, err = pcall slideshow.run, paths, cfg, list_images
+  ok, err = pcall slideshow.run, paths, cfg, list_images, overrides
   display.close!
   unless ok
     io.stderr\write "diapo: erreur — #{err}\n"

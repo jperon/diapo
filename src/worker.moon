@@ -34,17 +34,31 @@ process = ->
   ori = exif.orientation path
   exif.apply rl, img, ori if ori != 1
 
-  faces = facedetect.detect_image rl, img[0],
-    detect_width: job.detect_width
-    min_score: job.min_score
-    rotate: job.rotate != 0
+  iw, ih = img[0].width, img[0].height
+
+  -- Override manuel (.diapo) : visages normalisés fournis en entrée -> on saute la détection.
+  local faces
+  if job.override_nfaces > 0
+    print "diapo: visages manuels (.diapo) pour #{path} : #{job.override_nfaces}"
+    faces = {}
+    for i = 1, job.override_nfaces
+      b = (i - 1) * 5
+      faces[i] = {
+        x: job.faces[b+0] * iw, y: job.faces[b+1] * ih
+        w: job.faces[b+2] * iw, h: job.faces[b+3] * ih
+        score: job.faces[b+4]
+      }
+  else
+    faces = facedetect.detect_image rl, img[0],
+      detect_width: job.detect_width
+      min_score: job.min_score
+      rotate: job.rotate != 0
 
   -- Choix du visage cadré serré (un seul, au hasard) si l'option est active et >1 visage.
   focus = (job.face_focus != 0 and #faces > 1) and
     facedetect.weighted_index(faces, job.face_delta_max) or 0
   job.focus = focus
 
-  iw, ih = img[0].width, img[0].height
   plan = kenburns.plan iw, ih, faces,
     aspect: job.aspect
     margin: job.margin
@@ -54,6 +68,7 @@ process = ->
     zoom_min: job.zoom_min
     keep_eyes: job.keep_eyes != 0
     focus: focus > 0 and focus or nil
+    arc_dir: (job.arc_dir_mode == 0 and "toward") or (job.arc_dir_mode == 1 and "away") or "both"
 
   -- Fond flou éventuel (Image CPU ; on transmet la propriété des pixels au thread principal)
   if job.make_bg != 0
@@ -79,6 +94,7 @@ process = ->
   s, e = plan.start, plan.finish
   job.start_x, job.start_y, job.start_w, job.start_h = s.x, s.y, s.w, s.h
   job.finish_x, job.finish_y, job.finish_w, job.finish_h = e.x, e.y, e.w, e.h
+  job.arc_dx, job.arc_dy, job.arc_sign = plan.arc_dx, plan.arc_dy, plan.arc_sign
 
   -- Premier plan : on transmet la propriété des pixels (le thread principal libérera).
   job.img_data = img[0].data

@@ -9,8 +9,8 @@ defaults =
   pause_hidden:    true   -- met le rendu en pause si la fenêtre est minimisée/masquée
   pause_unfocused: false  -- pause aussi quand la fenêtre n'a pas le focus (économie agressive)
   shuffle:     true     -- ordre aléatoire (prioritaire sur `order`)
-  order:       { "dossier" }  -- si shuffle=false : priorité d'ordonnancement
-                              -- ("dossier", "exif", "similarite" ; cf config.example.lua)
+  order:       { "folder" }   -- si shuffle=false : priorité d'ordonnancement
+                              -- ("folder", "exif", "similarity" ; cf config.example.lua)
   recursive:   true
   detect_width: 480     -- largeur de travail pour la détection (px)
   min_score:   70       -- seuil de confiance des visages
@@ -28,7 +28,9 @@ defaults =
   speed:       1.0      -- vitesse de l'effet (1 = une traversée par durée d'affichage)
   bounce:      true     -- aller-retour si l'affichage dure plus que le mouvement
   easing:      2.0      -- accél./décél. : 1 = linéaire, 2 = doux, >2 = marqué
-  face_arc:    0.12     -- bosse verticale du cadrage (sujet remonte puis redescend) ; 0 = off
+  face_arc:    0.12     -- amplitude de la bosse du cadrage (sujet dévie puis revient) ; 0 = off
+  face_arc_dir: "both"  -- sens de la bosse selon le sujet : "toward" (vers le sujet),
+                        -- "away" (à l'opposé) ou "both" (tiré au hasard à chaque image)
   zoom_out:    1.0      -- >1 : autorise un dézoom au-delà de l'image (ex. 1.3)
   zoom_max:    0.0      -- magnification max de la vue serrée (0 = pas de limite)
   zoom_min:    0.0      -- magnification min de la vue large (plancher ; 0 = pas de plancher)

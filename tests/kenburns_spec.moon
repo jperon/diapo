@@ -39,5 +39,41 @@ ok math.abs((p1a.finish.x + p1a.finish.w/2) - (p1b.finish.x + p1b.finish.w/2)) <
   "un seul visage : focus sans effet"
 ok (kb.plan IW, IH, faces, { aspect: 1.0, focus: 99 }) != nil, "focus hors limites : pas d'erreur"
 
+-- ── Arc bi-axe ────────────────────────────────────────────────────────────────
+-- Composantes proportionnelles à l'écart au centre, sens forcé via arc_sign.
+-- Sujet en haut-gauche (centre 250,250 dans une image 1000×1000) -> dx<0, dy<0.
+bboxTL = { x: 200, y: 200, w: 100, h: 100 }
+dx, dy, sgn = kb.arc_components bboxTL, 1000, 1000, "toward", 1
+ok dx < 0 and dy < 0, "toward : bosse vers le sujet en haut-gauche (dx,dy<0)"
+ok sgn == 1, "sens forcé conservé"
+dxA, dyA = kb.arc_components bboxTL, 1000, 1000, "away", -1
+ok dxA > 0 and dyA > 0, "away : bosse à l'opposé du sujet (dx,dy>0)"
+ok math.abs(dxA + dx) < 1e-9 and math.abs(dyA + dy) < 1e-9, "away = -toward (composantes opposées)"
+
+-- Sujet centré -> aucune bosse.
+dxc, dyc = kb.arc_components { x: 450, y: 450, w: 100, h: 100 }, 1000, 1000, "both", 1
+ok math.abs(dxc) < 1e-9 and math.abs(dyc) < 1e-9, "sujet centré : bosse nulle"
+-- Pas de sujet (bbox nil) -> neutre.
+dxn, dyn = kb.arc_components nil, 1000, 1000, "both"
+ok dxn == 0 and dyn == 0, "pas de sujet : bosse nulle"
+
+-- `at` applique la bosse sur les deux axes au milieu du mouvement (e=0.5, sin=1).
+kbArc = { start: { x: 0, y: 0, w: 1000, h: 1000 }, finish: { x: 0, y: 0, w: 1000, h: 1000 },
+          img_w: 1000, img_h: 1000, free_x: true, free_y: true, arc_dx: -0.5, arc_dy: 0.25 }
+mid = kb.at kbArc, 0.5, 0.1
+ok math.abs(mid.x - (0.1 * -0.5 * 1000)) < 1e-6, "at : déviation x = arc·arc_dx·w au milieu"
+ok math.abs(mid.y - (0.1 * 0.25 * 1000)) < 1e-6, "at : déviation y = arc·arc_dy·h au milieu"
+ends = kb.at kbArc, 0.0, 0.1
+ok math.abs(ends.x) < 1e-6 and math.abs(ends.y) < 1e-6, "at : bosse nulle aux extrémités"
+-- arc=0 -> aucune déviation même avec des composantes.
+flat = kb.at kbArc, 0.5, 0
+ok math.abs(flat.x) < 1e-6 and math.abs(flat.y) < 1e-6, "at : arc=0 -> pas de déviation"
+
+-- arc_sign mémorisé : repasser le sens reproduit exactement les mêmes composantes.
+p1 = kb.plan IW, IH, { faceL }, { aspect: 1.0, arc_dir: "both" }
+p2 = kb.plan IW, IH, { faceL }, { aspect: 1.0, arc_dir: "both", arc_sign: p1.arc_sign }
+ok math.abs(p1.arc_dx - p2.arc_dx) < 1e-9 and math.abs(p1.arc_dy - p2.arc_dy) < 1e-9,
+  "arc_sign mémorisé : composantes reproduites au recalcul"
+
 print "kenburns: #{passed} ok, #{failed} échec(s)"
 os.exit(failed == 0 and 0 or 1)

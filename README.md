@@ -95,8 +95,8 @@ nix-shell --run './diapo ~/Photos'
   --window             mode fenêtré
   --no-shuffle         ordre déterministe (par défaut alphabétique ; voir --order)
   --order <liste>      priorité d'ordonnancement (implique --no-shuffle), critères
-                       séparés par des virgules parmi : dossier, exif, similarite
-                       (ex. dossier,similarite = parcours visuellement fluide par dossier)
+                       séparés par des virgules parmi : folder, exif, similarity
+                       (ex. folder,similarity = parcours visuellement fluide par dossier)
   --detect-rotated     détecte aussi sur ±90° même si un visage est déjà trouvé (plus lent ;
                        utile pour les dossiers mêlant photos à l'endroit et tournées)
   --debug-faces        affiche les rectangles des visages détectés
@@ -178,9 +178,13 @@ affichée au démarrage.
   l'accélération/décélération (1 = linéaire, 2 = doux, plus = plus marqué). Lorsque
   `speed > 1`, le mouvement (qui rebondit) **décélère** sur une fenêtre finale pour
   s'immobiliser juste avant le fondu, évitant tout arrêt brusque.
-- **`face_arc`** : pendant le mouvement le cadrage « remonte » légèrement sur le sujet puis
-  redescend en fin de course, de sorte que le visage entier redevienne visible à l'arrivée
-  (bosse verticale sinusoïdale, nulle aux extrémités).
+- **`face_arc`** : pendant le mouvement le cadrage dévie légèrement (bosse sinusoïdale, nulle
+  aux extrémités) puis revient à son cadrage final. La déviation est **bi-axe** : son vecteur
+  est proportionnel à l'écart du sujet au centre de l'image (sujet décentré → bosse diagonale ;
+  sujet centré → bosse quasi nulle). `face_arc` règle l'amplitude.
+- **`face_arc_dir`** : sens de la bosse — `"toward"` (vers le sujet), `"away"` (à l'opposé) ou
+  `"both"` (tiré au hasard à chaque image, défaut). Le sens tiré reste stable pendant la diapo
+  (y compris lors d'un redimensionnement de fenêtre).
 - **`zoom_max` / `zoom_min`** : bornes explicites de magnification (relative à la vue
   plein-cadre). Le zoom serré effectif vaut `min(zoom_max, zoom_calculé)` (évite de trop
   zoomer sur un petit visage) ; le zoom large effectif vaut `max(zoom_min, zoom_calculé)`.
@@ -195,6 +199,34 @@ affichée au démarrage.
   entre threads emploie une barrière mémoire (`__sync_synchronize`) autour du drapeau
   d'état, donc l'ordre des écritures/lectures est garanti même sur architectures à modèle
   mémoire faible (ARM, Raspberry Pi…).
+
+## Override manuel des visages (`.diapo`)
+
+Dans de rares cas, la détection automatique échoue (visage de profil, peu contrasté,
+partiellement masqué). On peut alors **déclarer les visages à la main** dans un fichier caché
+`.diapo` (un fichier Lua) placé dans le dossier d'images. Il renvoie une table associant un
+chemin (relatif au `.diapo`, sous-dossiers autorisés) à une liste de visages, en **coordonnées
+normalisées** `[0..1]` (fraction de la largeur/hauteur, après rotation EXIF) :
+
+```lua
+-- .diapo
+return {
+  ["portrait.jpg"]    = { { x = 0.42, y = 0.30, w = 0.12, h = 0.18 } },
+  ["sous/groupe.jpg"] = { { x = 0.20, y = 0.25, w = 0.10, h = 0.15 },
+                          { x = 0.55, y = 0.28, w = 0.10, h = 0.15 } },
+}
+```
+
+Quand une image est listée, ses visages déclarés **remplacent** la détection automatique (qui
+est alors sautée). Si plusieurs `.diapo` couvrent la même image (un à la racine, un dans un
+sous-dossier), le **plus profond l'emporte**. Les visages manuels n'ont pas de landmarks
+(yeux) : `keep_eyes` est sans effet sur eux. Une clé peut aussi être un **chemin absolu**.
+
+Au démarrage, le chargement est journalisé : chaque `.diapo` lu (nombre d'images ciblées), le
+nombre d'images effectivement couvertes, et — surtout — un avertissement pour toute clé
+**sans image correspondante** (faute de casse, mauvais chemin relatif…). Si l'override semble
+ignoré, vérifier ces messages : la clé doit correspondre exactement au chemin de l'image tel
+que listé (relatif au `.diapo`).
 
 ## Architecture
 

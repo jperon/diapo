@@ -33,9 +33,12 @@ do
   eq order.dirname("x.jpg"), "", "dirname sans /"
   eq order.to_stamp("2023:05:01 12:30:45"), 20230501123045, "to_stamp"
   eq order.to_stamp("pas une date"), nil, "to_stamp invalide -> nil"
-  eq table.concat(order.normalize({"exif", "x", "exif", "dossier"}), ","),
-    "exif,dossier", "normalize : connus, sans doublon"
+  eq table.concat(order.normalize({"exif", "x", "exif", "folder"}), ","),
+    "exif,folder", "normalize : connus, sans doublon"
   eq #order.normalize(nil), 0, "normalize nil -> {}"
+  -- Anciens noms français acceptés comme alias des noms anglais.
+  eq table.concat(order.normalize({"dossier", "similarite"}), ","),
+    "folder,similarity", "normalize : alias français -> anglais"
 
 -- partition_sorted : groupes triés par clé, ordre d'entrée stable dans un groupe
 do
@@ -62,12 +65,12 @@ do
   B = { path: "x", dir: "a", stamp: 1, sig: sig(250) }
   C = { path: "y", dir: "a", stamp: 3, sig: sig(240) }
   items = { A, B, C }
-  eq paths_of(order.order_group items, {"dossier", "exif"}), "x,y,z",
-    "dossier,exif : dir a (par date) puis dir b"
-  eq paths_of(order.order_group items, {"dossier", "similarite"}), "x,y,z",
-    "dossier,similarite : enchaînement dans dir a, puis dir b"
-  eq paths_of(order.order_group items, {"similarite"}), "x,z,y",
-    "similarite seule : enchaînement global"
+  eq paths_of(order.order_group items, {"folder", "exif"}), "x,y,z",
+    "folder,exif : dir a (par date) puis dir b"
+  eq paths_of(order.order_group items, {"folder", "similarity"}), "x,y,z",
+    "folder,similarity : enchaînement dans dir a, puis dir b"
+  eq paths_of(order.order_group items, {"similarity"}), "x,z,y",
+    "similarity seule : enchaînement global"
 
 -- order : shuffle déterministe (même graine -> même résultat), repli alphabétique
 do

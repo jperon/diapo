@@ -8,8 +8,14 @@ exif      = require "exif"
 async     = require "async"
 rl        = display.rl
 
--- Prépare une diapo à partir d'un chemin. Renvoie nil en cas d'échec de chargement.
-prepare = (path, cfg, reverse) ->
+-- Convertit des visages normalisés [0..1] en coordonnées pixel (image iw×ih).
+denorm_faces = (faces, iw, ih) ->
+  [{ x: f.x*iw, y: f.y*ih, w: f.w*iw, h: f.h*ih, score: f.score or 100 } for f in *faces]
+
+-- Prépare une diapo à partir d'un chemin. `override` (optionnel) = visages normalisés
+-- déclarés à la main (.diapo) : s'ils existent, on saute la détection automatique.
+-- Renvoie nil en cas d'échec de chargement.
+prepare = (path, cfg, reverse, override) ->
   img = ffi.new "Image[1]"
   img[0] = rl.C.LoadImage path
   return nil if img[0].width == 0 or img[0].height == 0
@@ -18,11 +24,15 @@ prepare = (path, cfg, reverse) ->
   ori = exif.orientation path
   exif.apply rl, img, ori if ori != 1
 
-  -- Détection (sur copie réduite ; l'image d'origine reste intacte)
-  faces = facedetect.detect_image rl, img[0],
-    detect_width: cfg.detect_width
-    min_score: cfg.min_score
-    rotate: cfg.detect_rotated
+  -- Détection (sur copie réduite ; l'image d'origine reste intacte) — sauf override manuel.
+  faces = if override and #override > 0
+    print "diapo: visages manuels (.diapo) pour #{path} : #{#override}"
+    denorm_faces override, img[0].width, img[0].height
+  else
+    facedetect.detect_image rl, img[0],
+      detect_width: cfg.detect_width
+      min_score: cfg.min_score
+      rotate: cfg.detect_rotated
 
   -- Plusieurs visages : on en tire un seul à cadrer (sauf si face_focus désactivé). Mémorisé
   -- dans la diapo pour rester stable lors d'un recalcul (redimensionnement).
@@ -50,6 +60,7 @@ prepare = (path, cfg, reverse) ->
     zoom_min: cfg.zoom_min
     keep_eyes: cfg.keep_eyes
     focus: focus
+    arc_dir: cfg.face_arc_dir
 
   { :path, :tex, :bg, :iw, :ih, :faces, :plan, :focus, t0: display.time!, :reverse }
 
@@ -61,19 +72,23 @@ unload_slide = (s) ->
 -- `refresh` (facultatif) : fonction renvoyant une nouvelle liste ordonnée de chemins (ou
 -- nil/vide si le dossier est devenu vide). Appelée en fin de cycle pour intégrer les
 -- images ajoutées/supprimées sans relancer l'application.
-run = (paths, cfg, refresh) ->
+run = (paths, cfg, refresh, overrides={}) ->
   return if #paths == 0
   n = #paths
   math.randomseed os.time! * 1000 + math.floor(os.clock! * 1000) % 1000   -- choix du visage
 
-  -- Réactualise `paths`/`n` depuis `refresh()`. On ignore un résultat vide (on ne se vide
-  -- pas tout seul si le dossier a été momentanément purgé).
+  -- Visages déclarés à la main (.diapo) pour un chemin, ou nil.
+  ov = (path) -> overrides[path]
+
+  -- Réactualise `paths`/`n`/`overrides` depuis `refresh()`. On ignore un résultat vide (on ne
+  -- se vide pas tout seul si le dossier a été momentanément purgé).
   refresh_paths = ->
     return unless refresh
-    fresh = refresh!
+    fresh, fresh_ov = refresh!
     if fresh and #fresh > 0
       paths = fresh
       n = #paths
+      overrides = fresh_ov or {}
   fade = cfg.fade
   dur  = cfg.duration
   motion_dur = dur / (cfg.speed or 1)
@@ -124,10 +139,10 @@ run = (paths, cfg, refresh) ->
     else
       nxt_i = wrap ci + 1
     if use_async
-      async.submit paths[nxt_i], cfg, rev_for(nxt_i), display.aspect!
+      async.submit paths[nxt_i], cfg, rev_for(nxt_i), display.aspect!, ov(paths[nxt_i])
       submitted = true
     else
-      nxt = prepare paths[nxt_i], cfg, rev_for(nxt_i)
+      nxt = prepare paths[nxt_i], cfg, rev_for(nxt_i), ov(paths[nxt_i])
 
   -- État du fondu enchaîné.
   fading = false
@@ -154,6 +169,8 @@ run = (paths, cfg, refresh) ->
       zoom_min: cfg.zoom_min
       keep_eyes: cfg.keep_eyes
       focus: s.focus
+      arc_dir: cfg.face_arc_dir
+      arc_sign: s.plan and s.plan.arc_sign   -- conserve le sens d'arc tiré au premier calcul
 
   begin_transition = (to, to_i, now) ->
     rebuild_plan to                 -- la diapo entrante adopte le ratio d'écran courant
@@ -183,10 +200,10 @@ run = (paths, cfg, refresh) ->
         nxt = nil
       if use_async
         nxt_i = want
-        async.submit paths[want], cfg, rev_for(want), display.aspect!
+        async.submit paths[want], cfg, rev_for(want), display.aspect!, ov(paths[want])
         submitted = true
       else                            -- repli synchrone (bloque, mais worker indisponible)
-        to = prepare paths[want], cfg, rev_for(want)
+        to = prepare paths[want], cfg, rev_for(want), ov(paths[want])
         begin_transition to, want, now if to
         want = nil
     -- sinon : worker occupé sur un autre index -> on patiente (l'image courante anime)
@@ -195,7 +212,7 @@ run = (paths, cfg, refresh) ->
   tries = 0
   while cur == nil and tries < n
     ci = wrap ci + 1
-    cur = prepare paths[ci], cfg, rev_for(ci)
+    cur = prepare paths[ci], cfg, rev_for(ci), ov(paths[ci])
     tries += 1
   unless cur
     async.stop! if use_async

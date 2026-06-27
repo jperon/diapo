@@ -1,6 +1,7 @@
 -- Ordonnancement des images selon une liste de priorité configurable.
--- Critères : "dossier" (répertoire parent), "exif" (date de prise de vue), "similarite"
+-- Critères : "folder" (répertoire parent), "exif" (date de prise de vue), "similarity"
 -- (ressemblance visuelle, enchaînement plus-proche-voisin).
+-- Les anciens noms français ("dossier", "similarite") restent acceptés (alias).
 --
 -- Modèle : la liste de priorité définit des niveaux de regroupement imbriqués. Chaque
 -- critère ordonne à l'intérieur des groupes formés par les critères de priorité
@@ -9,7 +10,9 @@
 signature = require "signature"
 exif      = require "exif"
 
-VALID = { dossier: true, exif: true, similarite: true }
+VALID = { folder: true, exif: true, similarity: true }
+-- Alias rétro-compatibles (anciens noms français -> noms canoniques anglais).
+ALIAS = { dossier: "folder", similarite: "similarity" }
 
 -- Répertoire parent d'un chemin (chaîne vide si aucun "/").
 dirname = (p) -> (p\match "^(.*)/[^/]*$") or ""
@@ -77,10 +80,10 @@ order_group = (items, crits) ->
   return items if #items <= 1 or #crits == 0
   crit = crits[1]
   rest = [crits[i] for i = 2, #crits]
-  if crit == "similarite"
+  if crit == "similarity"
     nn_chain items
   else
-    keyf = crit == "dossier" and ((it) -> it.dir) or ((it) -> it.stamp)
+    keyf = crit == "folder" and ((it) -> it.dir) or ((it) -> it.stamp)
     out = {}
     for g in *partition_sorted items, keyf
       for it in *order_group g, rest
@@ -93,6 +96,7 @@ normalize = (list) ->
   seen = {}
   out = {}
   for c in *list
+    c = ALIAS[c] or c
     if VALID[c] and not seen[c]
       seen[c] = true
       out[#out + 1] = c
@@ -147,7 +151,7 @@ save_cache = (entries) ->
 --------------------------------------------------------------------------------- public
 -- order(paths, cfg, meta) -> nouvelle liste de chemins ordonnée.
 --   cfg.shuffle      : si vrai, ordre aléatoire (prioritaire).
---   cfg.order        : liste de priorité ("dossier"/"exif"/"similarite").
+--   cfg.order        : liste de priorité ("folder"/"exif"/"similarity").
 --   meta[path]       : { size, mtime } (facultatif) pour le repli date + le cache.
 order = (paths, cfg={}, meta) ->
   list = [p for p in *paths]                        -- copie (on ne mute pas l'entrée)
@@ -160,7 +164,7 @@ order = (paths, cfg={}, meta) ->
 
   need_sig = false
   for c in *crits
-    need_sig = true if c == "similarite"
+    need_sig = true if c == "similarity"
 
   cache = need_sig and load_cache! or {}
   rl = need_sig and require("raylib") or nil

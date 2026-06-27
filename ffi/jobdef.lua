@@ -23,6 +23,8 @@ typedef struct {
   int    make_bg;
   int    bg_width;
   int    bg_blur;
+  int    arc_dir_mode;
+  int    override_nfaces;
 
   void  *img_data;
   int    img_w, img_h, img_format;
@@ -34,6 +36,8 @@ typedef struct {
 
   int    nfaces;
   int    focus;
+  double arc_dx, arc_dy;
+  int    arc_sign;
   float  faces[320];
 } DiapoJob;
 ]]

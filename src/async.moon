@@ -32,8 +32,15 @@ stop = ->
     state.worker = nil
     state.job = nil
 
+-- Codage du sens d'arc en entier pour le job (chaîne -> 0/1/2).
+arc_dir_mode = (dir) -> switch dir
+  when "toward" then 0
+  when "away"   then 1
+  else 2                       -- "both" (défaut)
+
 -- Soumet une requête de préchargement. À n'appeler que si le worker est libre (idle/done).
-submit = (path, cfg, reverse, aspect) ->
+-- `override` (optionnel) = visages normalisés [0..1] déclarés à la main (.diapo).
+submit = (path, cfg, reverse, aspect, override) ->
   j = state.job
   -- chemin (copie dans le buffer fixe)
   p = path\sub 1, 4095
@@ -54,8 +61,21 @@ submit = (path, cfg, reverse, aspect) ->
   j.make_bg      = (cfg.background == "blur" and (cfg.zoom_out or 1) > 1) and 1 or 0
   j.bg_width     = cfg.bg_width
   j.bg_blur      = cfg.bg_blur
+  j.arc_dir_mode = arc_dir_mode cfg.face_arc_dir
   j.img_data     = nil
   j.bg_data      = nil
+  -- Override manuel des visages : écrit dans le buffer faces[] en coordonnées normalisées.
+  -- Le worker convertit en pixels après chargement et saute la détection.
+  if override and #override > 0
+    n = math.min #override, 64
+    j.override_nfaces = n
+    for i = 1, n
+      f = override[i]
+      b = (i - 1) * 5
+      j.faces[b+0], j.faces[b+1], j.faces[b+2], j.faces[b+3] = f.x, f.y, f.w, f.h
+      j.faces[b+4] = f.score or 100
+  else
+    j.override_nfaces = 0
   C.diapo_membar!              -- release : entrées visibles avant le drapeau
   j.state        = 1           -- publie la requête en dernier
 
@@ -104,6 +124,10 @@ finalize = (cfg) ->
     -- axes "libres" (fond visible) : pas d'écrêtage -> trajectoire lisse (voir kenburns.at)
     free_x: sr.w > j.img_w + 0.5 or er.w > j.img_w + 0.5
     free_y: sr.h > j.img_h + 0.5 or er.h > j.img_h + 0.5
+    -- bosse d'arc bi-axe (calculée par le worker ; arc_sign mémorisé pour le recalcul resize)
+    arc_dx: j.arc_dx
+    arc_dy: j.arc_dy
+    arc_sign: j.arc_sign
 
   -- focus = visage cadré choisi par le worker (0 = tous) ; mémorisé pour les recalculs
   -- (redimensionnement) afin que le visage cadré ne change pas en cours de diapo.

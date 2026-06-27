@@ -11,13 +11,14 @@ return {
   pause_unfocused = false, -- pause aussi quand la fenêtre n'a pas le focus
   shuffle      = true,   -- ordre aléatoire (prioritaire ; mettre false pour utiliser `order`)
   -- Ordonnancement quand shuffle = false. Liste de priorité décroissante parmi :
-  --   "dossier"    : regroupe par répertoire parent
+  --   "folder"     : regroupe par répertoire parent
   --   "exif"       : trie par date de prise de vue (EXIF, repli date du fichier)
-  --   "similarite" : enchaîne les images visuellement proches (vignette couleur 8×8)
+  --   "similarity" : enchaîne les images visuellement proches (vignette couleur 8×8)
   -- La similarité réordonne à l'intérieur des groupes définis par les critères qui la
-  -- précèdent. Exemples : {"dossier","exif"} ≈ chronologique par dossier ;
-  -- {"dossier","similarite"} = parcours visuellement fluide de chaque dossier.
-  order        = { "dossier", "similarite" },
+  -- précèdent. Exemples : {"folder","exif"} ≈ chronologique par dossier ;
+  -- {"folder","similarity"} = parcours visuellement fluide de chaque dossier.
+  -- (Les anciens noms "dossier"/"similarite" restent acceptés.)
+  order        = { "folder", "similarity" },
   recursive    = true,
   detect_width = 480,    -- largeur de travail pour la détection (px) ; ↑ = + précis, − rapide
   min_score    = 70,     -- seuil de confiance des visages (0..100)
@@ -35,7 +36,9 @@ return {
   speed        = 1.0,    -- vitesse de l'effet (1 = une traversée par durée d'affichage)
   bounce       = true,   -- aller-retour si l'affichage dure plus que le mouvement
   easing       = 2.0,    -- accél./décél. : 1 = linéaire, 2 = doux, >2 = marqué
-  face_arc     = 0.12,   -- bosse verticale (le sujet remonte puis redescend) ; 0 = désactivé
+  face_arc     = 0.12,   -- amplitude de la bosse (le cadrage dévie puis revient) ; 0 = désactivé
+  face_arc_dir = "both", -- sens de la bosse selon la position du sujet : "toward" (vers le
+                         -- sujet), "away" (à l'opposé) ou "both" (tiré au hasard à chaque image)
   zoom_out     = 1.0,    -- >1 : autorise un dézoom au-delà de l'image (ex. 1.3)
   zoom_max     = 0.0,    -- magnification max de la vue serrée (0 = pas de limite)
   zoom_min     = 0.0,    -- magnification min de la vue large (plancher ; 0 = pas de plancher)

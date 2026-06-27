@@ -75,6 +75,28 @@ eye_points = (faces) ->
       pts[#pts+1] = f.landmarks[2]
   pts
 
+-- Composantes de la bosse d'arc : un vecteur (dx,dy) proportionnel à l'écart du sujet au
+-- centre de l'image (normalisé par la demi-dimension, borné à [-1,1]), affecté d'un signe
+-- tiré au hasard parmi les sens activés. +1 = bosse VERS le sujet ; -1 = à l'opposé.
+--   bbox      boîte du sous-ensemble cadré (nil = pas de sujet -> arc neutre)
+--   dir       "toward" | "away" | "both" (sens tirables)
+--   sign_in   sens forcé (optionnel) : reproduit un arc mémorisé (recalcul/resize)
+-- Renvoie dx, dy, sign (sign mémorisable pour un recalcul ultérieur).
+arc_components = (bbox, img_w, img_h, dir, sign_in) ->
+  return 0, 0, 1 unless bbox
+  cx = bbox.x + bbox.w/2
+  cy = bbox.y + bbox.h/2
+  clamp = (v) -> math.max -1, math.min v, 1
+  dx = clamp (cx - img_w/2) / (img_w/2)
+  dy = clamp (cy - img_h/2) / (img_h/2)
+  sign = sign_in
+  unless sign
+    sign = switch dir
+      when "toward" then 1
+      when "away"   then -1
+      else math.random! < 0.5 and -1 or 1   -- "both" (défaut)
+  sign * dx, sign * dy, sign
+
 -- Construit le plan Ken Burns.
 --   opts.aspect    ratio écran
 --   opts.margin    marge autour des visages pour le cadrage serré (def 0.35)
@@ -83,6 +105,8 @@ eye_points = (faces) ->
 --   opts.keep_eyes garantit que les yeux restent dans la vue tout au long du mouvement
 --   opts.focus     index (1-based) du seul visage à cadrer serré (sinon : tous). La vue
 --                  large reste l'image entière (tout le monde visible au départ).
+--   opts.arc_dir   sens tirables de la bosse d'arc : "toward" | "away" | "both" (def)
+--   opts.arc_sign  sens forcé (optionnel) pour reproduire un arc mémorisé
 plan = (img_w, img_h, faces, opts={}) ->
   aspect   = opts.aspect or (16/9)
   margin   = opts.margin or 0.35
@@ -172,7 +196,13 @@ plan = (img_w, img_h, faces, opts={}) ->
   -- donc l'interpolation y reste sans avoir besoin d'écrêtage.
   free_x = start_r.w > img_w + 0.5 or end_r.w > img_w + 0.5
   free_y = start_r.h > img_h + 0.5 or end_r.h > img_h + 0.5
-  { start: start_r, finish: end_r, :aspect, :img_w, :img_h, :free_x, :free_y }
+
+  -- Bosse d'arc bi-axe : composantes dérivées de la position du sujet (bbox du cadrage
+  -- serré). Le sens est tiré (ou repris via opts.arc_sign pour rester stable au recalcul).
+  arc_dx, arc_dy, arc_sign = arc_components bbox, img_w, img_h, (opts.arc_dir or "both"), opts.arc_sign
+
+  { start: start_r, finish: end_r, :aspect, :img_w, :img_h, :free_x, :free_y,
+    :arc_dx, :arc_dy, :arc_sign }
 
 -- Phase brute [0,1] à partir du temps écoulé et de la durée du mouvement.
 -- bounce=true : effet "rebond" (aller-retour) si l'affichage dure plus que le mouvement.
@@ -192,8 +222,10 @@ ease = (t, power=2) ->
     1 - 0.5 * (2 - 2 * t) ^ power
 
 -- Rectangle interpolé pour une progression `e` déjà lissée (in [0,1]).
--- `arc` ajoute une bosse verticale (nulle aux extrémités, maximale au milieu) : le sujet
--- "remonte" pendant le mouvement puis revient à son cadrage final (utile en dézoom).
+-- `arc` ajoute une bosse bi-axe (nulle aux extrémités, maximale au milieu) : le cadrage
+-- dévie selon un vecteur (kb.arc_dx, kb.arc_dy) dérivé de la position du sujet, puis revient
+-- à son cadrage final. `arc` est l'amplitude scalaire (cfg.face_arc) ; les composantes
+-- portent la direction et le signe (sens tiré au calcul du plan).
 at = (kb, e, arc=0) ->
   e = math.max 0, math.min e, 1
   a, b = kb.start, kb.finish
@@ -203,7 +235,9 @@ at = (kb, e, arc=0) ->
     w: a.w + (b.w - a.w) * e
     h: a.h + (b.h - a.h) * e
   if arc != 0
-    r.y += arc * r.h * math.sin math.pi * e
+    bump = math.sin math.pi * e
+    r.x += arc * (kb.arc_dx or 0) * r.w * bump
+    r.y += arc * (kb.arc_dy or 0) * r.h * bump
   -- Écrêtage UNIQUEMENT sur les axes non libres (où aucun fond n'est censé apparaître) :
   -- y borne l'effet d'`arc` ; x est un no-op (interpolation déjà interne). Sur les axes
   -- libres on ne touche à rien -> trajectoire lisse, pas de zig-zag.
@@ -214,4 +248,4 @@ at = (kb, e, arc=0) ->
   r
 
 { :plan, :at, :phase, :ease, :full_rect, :faces_bbox, :fit_aspect, :clamp_rect,
-  :expand_to_contain, :eye_points }
+  :expand_to_contain, :eye_points, :arc_components }

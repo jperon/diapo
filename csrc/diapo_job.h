@@ -28,6 +28,8 @@ typedef struct {
   int    make_bg;
   int    bg_width;
   int    bg_blur;
+  int    arc_dir_mode;   // sens d'arc tirables : 0 toward, 1 away, 2 both
+  int    override_nfaces;// >0 : visages manuels fournis dans faces[] (normalisés), détection sautée
 
   // Résultats (remplis par le worker)
   void  *img_data;       // pixels de l'Image raylib (premier plan)
@@ -41,7 +43,9 @@ typedef struct {
 
   int    nfaces;
   int    focus;          // index (1-based) du visage cadré serré, 0 = tous (sortie worker)
-  float  faces[DIAPO_MAX_FACES * 5];   // x,y,w,h,score par visage (pour le mode debug)
+  double arc_dx, arc_dy; // composantes de la bosse d'arc (signe inclus)
+  int    arc_sign;       // sens tiré (+1/-1), mémorisé pour le recalcul au resize
+  float  faces[DIAPO_MAX_FACES * 5];   // x,y,w,h,score par visage (entrée override / sortie debug)
 } DiapoJob;
 
 #endif
