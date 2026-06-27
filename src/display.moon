@@ -19,14 +19,44 @@ BLACK = rl.Color 0, 0, 0, 255
 
 state = { w: 0, h: 0 }
 
--- Met à jour la taille (et donc l'orientation) depuis la surface réelle. Appelée à chaque
--- frame : suit un changement de résolution ou une rotation portrait/paysage de l'écran.
+-- Détection de la rotation d'écran via SDL. raylib (backend SDL) ne redimensionne PAS sa
+-- surface plein écran quand l'écran pivote sous Wayland : GetScreenWidth/Height, le moniteur
+-- ET le render restent à leur valeur d'origine (vérifié par instrumentation) — diapo n'est donc
+-- notifié par aucune grandeur raylib. On interroge directement SDL (chargé en NEEDED par
+-- raylib, ses symboles sont résolus par le namespace `C`) : SDL_GetDisplayOrientation change,
+-- lui, à la rotation. SDL_DisplayOrientation : 0=UNKNOWN 1/2=LANDSCAPE 3/4=PORTRAIT.
+-- SDL_DisplayOrientation : 0=UNKNOWN, 1=LANDSCAPE, 2=LANDSCAPE_FLIPPED, 3=PORTRAIT,
+-- 4=PORTRAIT_FLIPPED. SDL est chargé en NEEDED par raylib -> ses symboles sont résolus par `C`.
+ffi.cdef "int SDL_GetDisplayOrientation(int displayIndex);"
+orientation = ->
+  ok, o = pcall -> C.SDL_GetDisplayOrientation C.GetCurrentMonitor!
+  ok and o or 0
+
+-- Sous Wayland, lors d'une rotation d'écran, raylib/SDL NE redimensionnent PAS la surface plein
+-- écran : GetScreenWidth/Height (le framebuffer) restent en paysage (vérifié par instrumentation)
+-- et le compositeur étire ce framebuffer paysage sur l'affichage devenu portrait -> image écrasée.
+-- On corrige côté rendu : on raisonne sur un « canevas logique » à l'aspect réellement affiché
+-- (dimensions échangées en portrait), puis on mappe vers le framebuffer de façon anisotrope ; le
+-- compositeur applique la transformation inverse, restituant les bonnes proportions.
+--   state.fw/fh : framebuffer réel (ce que dessine le GPU)   state.w/h : canevas logique.
 refresh_size = ->
-  w, h = C.GetScreenWidth!, C.GetScreenHeight!
-  if w > 0 and h > 0
-    state.w = w
-    state.h = h
+  o = orientation!
+  fw, fh = C.GetScreenWidth!, C.GetScreenHeight!
+  if fw > 0 and fh > 0
+    state.fw, state.fh = fw, fh
+    portrait = (o == 3 or o == 4)
+    if portrait
+      state.w, state.h = fh, fw     -- aspect affiché = portrait
+    else
+      state.w, state.h = fw, fh
   state
+
+-- Convertit un rectangle exprimé en coordonnées du canevas logique vers le framebuffer réel
+-- (mise à l'échelle anisotrope que le compositeur inversera).
+to_fb = (x, y, w, h) ->
+  sx = state.fw / state.w
+  sy = state.fh / state.h
+  x * sx, y * sy, w * sx, h * sy
 
 -- Ouvre la fenêtre. opts.fullscreen (def true), opts.title, opts.fps (def 60),
 -- opts.width/opts.height (taille de la fenêtre en mode fenêtré).
@@ -98,7 +128,7 @@ make_background_image = (img, opts={}) ->
 -- par le flou). Utilisée quand l'image au premier plan ne couvre pas tout l'écran.
 draw_background = (bgtex, alpha=255) ->
   source = rl.Rectangle 0, 0, bgtex.width, bgtex.height
-  dest   = rl.Rectangle 0, 0, state.w, state.h
+  dest   = rl.Rectangle to_fb 0, 0, state.w, state.h
   C.DrawTexturePro bgtex, source, dest, (rl.Vector2 0, 0), 0, (rl.Color 255, 255, 255, alpha)
 
 -- Dessine une diapo selon une `view` (rectangle en coords image, pouvant être plus grand
@@ -114,14 +144,14 @@ draw_slide = (slide, view, alpha=255) ->
   if not covers and slide.bg
     draw_background slide.bg, alpha
   source = rl.Rectangle 0, 0, slide.iw, slide.ih
-  dest   = rl.Rectangle dx, dy, dw, dh
+  dest   = rl.Rectangle to_fb dx, dy, dw, dh
   C.DrawTexturePro slide.tex, source, dest, (rl.Vector2 0, 0), 0, (rl.Color 255, 255, 255, alpha)
   dx, dy, scale
 
 -- Cadre de debug (rect image -> écran) selon la vue courante.
 draw_debug_rect = (view, rect_img, color) ->
   scale = state.w / view.w
-  r = rl.Rectangle (rect_img.x - view.x)*scale, (rect_img.y - view.y)*scale,
+  r = rl.Rectangle to_fb (rect_img.x - view.x)*scale, (rect_img.y - view.y)*scale,
                    rect_img.w*scale, rect_img.h*scale
   C.DrawRectangleLinesEx r, 3, color
 
@@ -138,7 +168,9 @@ key_pressed = (k) -> C.IsKeyPressed k
 -- Renvoie 0 quand la file est vide.
 char_pressed = -> C.GetCharPressed!
 mouse_pressed = (b) -> C.IsMouseButtonPressed b
-mouse_x = -> C.GetMouseX!
+-- Abscisse souris ramenée au canevas logique (GetMouseX est en pixels framebuffer) : cohérent
+-- avec screen! pour le découpage gauche/droite, même en portrait.
+mouse_x = -> C.GetMouseX! * state.w / (state.fw > 0 and state.fw or state.w)
 -- Nouveau toucher : front montant du nombre de points de contact. Avec le backend SDL de
 -- raylib, le tactile Wayland (wl_touch) alimente cette API (GLFW, lui, ne la renseigne pas).
 touch_pressed = ->
@@ -146,7 +178,7 @@ touch_pressed = ->
   was = state.touch_n or 0
   state.touch_n = n
   n > 0 and was == 0
-touch_x = -> C.GetTouchX!
+touch_x = -> C.GetTouchX! * state.w / (state.fw > 0 and state.fw or state.w)
 -- Fenêtre minimisée ou masquée (cas fiablement détectables d'invisibilité).
 hidden = -> C.IsWindowState(rl.FLAG_WINDOW_MINIMIZED) or C.IsWindowHidden!
 focused = -> C.IsWindowFocused!
