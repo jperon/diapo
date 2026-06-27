@@ -6,3 +6,9 @@ src/*.lua
 config.lua
 /result
 /result-*
+/packaging/flatpak/diapo-src.tar.gz
+/packaging/flatpak/build/
+.flatpak-builder/
+/result-appimage
+*.AppImage
+*.flatpak

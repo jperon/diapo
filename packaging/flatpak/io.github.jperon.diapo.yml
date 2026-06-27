@@ -1,0 +1,68 @@
+app-id: io.github.jperon.diapo
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+command: diapo
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  - --filesystem=host:ro
+modules:
+  - name: luajit
+    no-autogen: true
+    make-args:
+      - BUILDMODE=dynamic
+      - PREFIX=/app
+    make-install-args:
+      - PREFIX=/app
+    sources:
+      - type: archive
+        url: https://github.com/LuaJIT/LuaJIT/archive/9d145d2ca3db58493859c495489a0f08f627834f.tar.gz
+        sha256: eb74e47ae43f924fc2a30a70266de2a4c141eb38af43639cb275fc72070ebc2c
+    cleanup:
+      - /bin/luajit-*
+
+  - name: raylib
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+      - -DPLATFORM=SDL
+      - -DUSE_EXTERNAL_GLFW=OFF
+    sources:
+      - type: archive
+        url: https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz
+        sha256: aea98ecf5bc5c5e0b789a76de0083a21a70457050ea4cc2aec7566935f5e258e
+
+  - name: diapo
+    buildsystem: simple
+    build-commands:
+      # Wrapper libfacedetection (YuNet) + worker async, compilés en .so.
+      - >-
+        g++ -O3 -fPIC -shared -std=c++11
+        -I libfacedetection/src -I diapo/csrc -I /app/include/luajit-2.1
+        -fvisibility=hidden
+        libfacedetection/src/*.cpp
+        diapo/csrc/facedetect_wrap.cpp diapo/csrc/worker.cpp
+        -L /app/lib -lluajit-5.1 -lpthread
+        -o libfacedetection.so
+      - install -Dm644 libfacedetection.so /app/share/diapo/lib/libfacedetection.so
+      - cp -r diapo/src diapo/ffi diapo/assets /app/share/diapo/
+      - install -Dm644 diapo/config.example.lua /app/share/diapo/config.example.lua
+      - install -Dm755 diapo/diapo-launcher.sh /app/bin/diapo
+      - install -Dm644 diapo/assets/io.github.jperon.diapo.svg
+        /app/share/icons/hicolor/scalable/apps/io.github.jperon.diapo.svg
+      - install -Dm644 diapo/assets/io.github.jperon.diapo.metainfo.xml
+        /app/share/metainfo/io.github.jperon.diapo.metainfo.xml
+      - install -Dm644 diapo/assets/io.github.jperon.diapo.desktop
+        /app/share/applications/io.github.jperon.diapo.desktop
+    sources:
+      - type: archive
+        path: diapo-src.tar.gz
+        strip-components: 0
+      - type: git
+        url: https://github.com/ShiqiYu/libfacedetection.git
+        commit: 3023e1289e3b85311632bcfd45c9895b4292778b
+        dest: libfacedetection

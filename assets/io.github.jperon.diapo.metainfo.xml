@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.jperon.diapo</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>diapo</name>
+  <summary>Diaporama Ken Burns guidé par la détection de visage</summary>
+  <developer id="io.github.jperon">
+    <name>jperon</name>
+  </developer>
+  <description>
+    <p>
+      diapo est un diaporama pour Linux façon Fotoo : il enchaîne les images
+      d'un dossier avec un effet Ken Burns (zoom et panoramique lents) dont le
+      cadrage est guidé par la détection de visage, pour garder les personnes
+      bien dans le champ. Affichage GPU via raylib, navigation au clavier et au
+      toucher.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.jperon.diapo.desktop</launchable>
+  <url type="homepage">https://github.com/jperon/diapo</url>
+  <url type="bugtracker">https://github.com/jperon/diapo/issues</url>
+  <categories>
+    <category>Graphics</category>
+    <category>Viewer</category>
+  </categories>
+  <content_rating type="oars-1.1" />
+  <!-- TODO Flathub : ajouter au moins une capture d'écran avant soumission.
+       <screenshots>
+         <screenshot type="default">
+           <image>https://raw.githubusercontent.com/jperon/diapo/master/assets/screenshot.png</image>
+         </screenshot>
+       </screenshots> -->
+  <releases>
+    <release version="0.1.0" date="2026-06-27"/>
+  </releases>
+</component>
