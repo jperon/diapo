@@ -111,5 +111,18 @@ do
   _, _, okj = kb.joint_placement base(20), base(400), 1.0, 0.1, 0.3
   ok not okj, "joint_placement : renonce si tailles inconciliables (hors tolérance)"
 
+-- Coût : une rencontre de natures concordantes (deux vues serrées) coûte moins qu'une
+-- rencontre serré↔large. C'est la base du choix de direction quand alternate est désactivé.
+do
+  mkside = (nat_h) -> {
+    face: { cx: 500, cy: 500, h: 100 }, full_h: 1000, zmin: 0.8, zmax: 6.0
+    img_w: 1000, img_h: 1000, free_x: false, free_y: false
+    nat_view: { x: 0, y: 0, w: nat_h, h: nat_h }
+  }
+  A = mkside 200                                   -- A finit serré (petite vue -> grand visage)
+  _, _, _, cost_match = kb.joint_placement A, mkside(200), 1.0, 0.5, 0.5   -- B démarre serré
+  _, _, _, cost_diff  = kb.joint_placement A, mkside(900), 1.0, 0.5, 0.5   -- B démarre large
+  ok cost_match < cost_diff, "coût : natures concordantes (serré↔serré) < discordantes"
+
 print "kenburns: #{passed} ok, #{failed} échec(s)"
 os.exit(failed == 0 and 0 or 1)

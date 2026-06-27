@@ -254,7 +254,8 @@ overlap_pick = (alo, ahi, blo, bhi) ->
 --   { face={cx,cy,h}, full_h, zmin, zmax, img_w, img_h, free_x, free_y, nat_view }
 -- nat_view = vue naturelle de rencontre (cible de taille hs0 = face.h/nat_view.h). Priorité :
 -- coïncidence (même P), puis position proche du centre, le tout dans les tolérances.
--- Renvoie viewA, viewB, true ; ou nil, nil, false si on renonce (-> repli vues naturelles).
+-- Renvoie viewA, viewB, ok, cost — cost (plus petit = meilleur, math.huge si on renonce) mesure
+-- le compromis (résidu de position + écart de zoom + décentrage), pour comparer des variantes.
 joint_placement = (A, B, aspect, zoom_tol=0.25, pos_tol=0.15) ->
   hsA0 = A.face.h / A.nat_view.h
   hsB0 = B.face.h / B.nat_view.h
@@ -268,15 +269,19 @@ joint_placement = (A, B, aspect, zoom_tol=0.25, pos_tol=0.15) ->
     hs = math.max lo, math.min target, hi
   else
     mid = (lo + hi) / 2
-    return nil, nil, false if (lo - hi) / mid > zoom_tol   -- écart de zoom trop grand
+    return nil, nil, false, math.huge if (lo - hi) / mid > zoom_tol   -- écart de zoom trop grand
     hs = mid
   axl, axh, ayl, ayh = pos_range A.face, hs, aspect, A.img_w, A.img_h, A.free_x, A.free_y
   bxl, bxh, byl, byh = pos_range B.face, hs, aspect, B.img_w, B.img_h, B.free_x, B.free_y
   sx, rx = overlap_pick axl, axh, bxl, bxh
   sy, ry = overlap_pick ayl, ayh, byl, byh
-  return nil, nil, false if rx > pos_tol or ry > pos_tol   -- positions inconciliables
+  return nil, nil, false, math.huge if rx > pos_tol or ry > pos_tol   -- positions inconciliables
   P = { :sx, :sy, :hs }
-  (view_for_placement A.face, P, aspect), (view_for_placement B.face, P, aspect), true
+  -- Coût = compromis : à quel point chaque vue est tirée de SA taille naturelle (hsA0/hsB0),
+  -- plus le résidu de position et un léger malus de décentrage.
+  cost = rx + ry + math.abs(math.log(hs / hsA0)) + math.abs(math.log(hs / hsB0)) +
+    0.3 * (math.abs(sx - 0.5) + math.abs(sy - 0.5))
+  (view_for_placement A.face, P, aspect), (view_for_placement B.face, P, aspect), true, cost
 
 -- Phase brute [0,1] à partir du temps écoulé et de la durée du mouvement.
 -- bounce=true : effet "rebond" (aller-retour) si l'affichage dure plus que le mouvement.

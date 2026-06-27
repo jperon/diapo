@@ -17,7 +17,8 @@ defaults =
   detect_rotated: false -- tente aussi la détection sur ±90° même si un visage est trouvé
                         -- (utile pour les photos mêlant orientations ; plus lent)
   margin:      0.35     -- marge autour des visages pour le cadrage serré
-  alternate:   true     -- alterne zoom-in / zoom-out d'une image à l'autre
+  alternate:   true     -- alterne zoom-in / zoom-out d'une image à l'autre ; false/nil = le
+                        -- sens de chaque image est choisi pour la meilleure harmonie (cf. harmonize)
   debug_faces: false    -- dessine les rectangles de visages détectés
   keep_eyes:   true     -- garde toujours les yeux des sujets dans la vue
   face_focus:  true     -- plusieurs visages : cadre sur un seul (tiré au hasard à chaque

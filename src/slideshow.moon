@@ -138,6 +138,39 @@ run = (paths, cfg, refresh, overrides={}) ->
       plan.nat_finish = { k, v for k, v in pairs plan.finish }
     plan
 
+  -- Côté (sortante ou entrante) pour kenburns.joint_placement, avec sa vue naturelle de
+  -- rencontre `nat`. `free` = axe où le fond flou est admis (dézoom autorisé).
+  harm_side = (s, nat) ->
+    blur = (cfg.zoom_out or 1) > 1
+    {
+      face: s.plan.harm, full_h: s.plan.full_h, zmin: s.plan.zmin, zmax: s.plan.zmax
+      img_w: s.plan.img_w, img_h: s.plan.img_h, free_x: blur, free_y: blur, nat_view: nat
+    }
+
+  -- Coût d'harmonisation entre la fin de a (vue naturelle aFin) et un départ de b (vue bStart).
+  harm_cost = (a, aFin, b, bStart) ->
+    _, _, _, cost = kenburns.joint_placement (harm_side a, aFin), (harm_side b, bStart),
+      display.aspect!, cfg.harmonize_zoom_tol or 0.25, cfg.harmonize_pos_tol or 0.15
+    cost
+
+  -- Échange début<->fin du plan d'une diapo (inverse donc le sens d'animation zoom-in/out).
+  flip_direction = (s) ->
+    ensure_natural s.plan
+    s.plan.start, s.plan.finish = s.plan.finish, s.plan.start
+    s.plan.nat_start, s.plan.nat_finish = s.plan.nat_finish, s.plan.nat_start
+    s.reverse = not s.reverse
+
+  -- Sans `alternate` : choisit le sens d'animation de l'entrante b qui s'harmonise le mieux
+  -- avec la sortante a (compare le coût des deux orientations possibles de b).
+  choose_direction = (a, b) ->
+    return if cfg.alternate
+    return unless a and b and a.plan and b.plan and a.plan.harm and b.plan.harm
+    ensure_natural a.plan
+    ensure_natural b.plan
+    keep = harm_cost a, a.plan.nat_finish, b, b.plan.nat_start
+    flip = harm_cost a, a.plan.nat_finish, b, b.plan.nat_finish
+    flip_direction b if flip < keep
+
   -- Harmonise la transition a (sortante) -> b (entrante) : calcule un placement commun des
   -- deux visages et l'applique en surcouche (a.finish et b.start). Sans effet si désactivé,
   -- si un visage manque, ou si l'écart dépasse les tolérances (-> vues naturelles).
@@ -145,12 +178,8 @@ run = (paths, cfg, refresh, overrides={}) ->
     return unless cfg.harmonize != false and a and b and a.plan.harm and b.plan.harm
     ensure_natural a.plan
     ensure_natural b.plan
-    blur = (cfg.zoom_out or 1) > 1
-    side = (s, nat) -> {
-      face: s.plan.harm, full_h: s.plan.full_h, zmin: s.plan.zmin, zmax: s.plan.zmax
-      img_w: s.plan.img_w, img_h: s.plan.img_h, free_x: blur, free_y: blur, nat_view: nat
-    }
-    vA, vB, ok = kenburns.joint_placement (side a, a.plan.nat_finish), (side b, b.plan.nat_start),
+    vA, vB, ok = kenburns.joint_placement (harm_side a, a.plan.nat_finish),
+      (harm_side b, b.plan.nat_start),
       display.aspect!, cfg.harmonize_zoom_tol or 0.25, cfg.harmonize_pos_tol or 0.15
     return unless ok
     a.plan.finish = vA
@@ -393,6 +422,7 @@ run = (paths, cfg, refresh, overrides={}) ->
     -- établi, nxt est préchargée pendant le fondu, donc cur.finish est fixé avant le début du
     -- mouvement (pas de recalage visible) ; sinon, l'ajustement survient dès l'arrivée de nxt.
     if harm_pending and cur and nxt
+      choose_direction cur, nxt    -- sans `alternate` : oriente nxt pour la meilleure harmonie
       harmonize cur, nxt
       harm_pending = false
 

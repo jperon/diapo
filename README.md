@@ -203,6 +203,10 @@ affichée au démarrage.
   relatif de taille) et `harmonize_pos_tol` (décalage de position, fraction d'écran) bornent
   cette tolérance ; au-delà, on retombe sur les vues naturelles. Une image sans visage détecté
   garde le cadrage centré habituel. `harmonize = false` rétablit le comportement indépendant.
+  Quand **`alternate = false`**, le **sens d'animation** (zoom-in / zoom-out) de chaque image
+  n'est plus figé : il est choisi pour s'harmoniser au mieux avec la précédente (on compare le
+  coût des deux orientations possibles). En pratique cela tend vers une alternance, mais peut
+  s'en écarter quand la géométrie des visages le justifie.
 - **Fondu sur image immobile** : le fondu enchaîné a lieu **après** le mouvement Ken Burns,
   sur des images figées (l'ancienne sur sa dernière vue, la nouvelle sur sa première), et sa
   durée s'**ajoute** à celle de l'animation (temps total par image = `duration + fade`).
