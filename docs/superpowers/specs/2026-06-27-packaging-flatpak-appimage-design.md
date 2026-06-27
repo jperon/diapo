@@ -58,7 +58,8 @@ nouveaux noms, et pour installer le `metainfo.xml` dans
 
 Fichier : `packaging/flatpak/io.github.jperon.diapo.yml`.
 
-- Runtime : `org.freedesktop.Platform//24.08`, SDK correspondant.
+- Runtime : `org.freedesktop.Platform//25.08`, SDK correspondant (dernière
+  version stable ; cadence annuelle d'août).
 - Permissions (`finish-args`) :
   `--socket=wayland`, `--socket=fallback-x11`, `--device=dri`,
   `--filesystem=host:ro` (lecture des dossiers d'images), `--share=ipc`.
