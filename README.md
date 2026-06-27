@@ -11,6 +11,11 @@ de caméra est cadré pour que les visages restent visibles et bien centrés.
   est produit par `DrawTexturePro` en animant le rectangle source. raylib est compilé sur le
   backend **SDL** (et non GLFW) : sous Wayland natif, seul SDL transmet le tactile (`wl_touch`)
   et offre un vsync qui met la boucle en veille (≈ 4 % CPU au lieu de saturer un cœur).
+- **Formats d'image** : JPEG, PNG, BMP, GIF, TGA décodés directement par raylib. Les formats
+  récents (WebP, AVIF, HEIC/HEIF, JPEG 2000, TIFF) sont pris en charge via un **repli de
+  conversion** : si raylib ne sait pas décoder un fichier, il est converti à la volée en PNG
+  par **ImageMagick** (`magick`/`convert`). Une image illisible (format non géré sans
+  ImageMagick, fichier corrompu) est simplement **ignorée** sans bloquer le diaporama.
 
 ## Installation
 
@@ -65,7 +70,7 @@ système.
 ## Dépendances (développement)
 
 Fournies par `shell.nix` / `nix develop` (NixOS) : `luajit`, `luajitPackages.moonscript`,
-`raylib`, `gcc`, `git`.
+`raylib`, `imagemagick` (repli de décodage des formats récents), `gcc`, `git`.
 
 ```sh
 nix-shell           # entre dans l'environnement

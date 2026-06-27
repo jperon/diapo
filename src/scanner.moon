@@ -3,7 +3,13 @@
 -- meta[path] = { size, mtime } (utilisé pour l'ordonnancement EXIF/similarité), et
 -- overrides[path] = { {x,y,w,h,score}, ... } : visages déclarés manuellement (coordonnées
 -- normalisées [0..1]) dans les fichiers `.diapo`. Le tri/mélange est délégué à `order`.
-EXT = { jpg: true, jpeg: true, png: true, bmp: true, gif: true, webp: true }
+-- Formats reconnus. Ceux que raylib ne décode pas nativement (webp, avif, jp2, heic…) sont
+-- pris en charge via le repli de conversion externe (voir display.load_image).
+EXT = {
+  jpg: true, jpeg: true, png: true, bmp: true, gif: true, tga: true,
+  webp: true, avif: true, heic: true, heif: true,
+  jp2: true, j2k: true, jpf: true, jpx: true, tif: true, tiff: true
+}
 
 ext_of = (path) -> (path\match "%.([^.]+)$" or "")\lower!
 basename = (path) -> path\match "([^/]+)$" or path

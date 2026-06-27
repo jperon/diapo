@@ -82,11 +82,14 @@
 
             # Le code charge $DIAPO_ROOT/lib/libfacedetection.so (cf. facedetect.moon),
             # d'où DIAPO_ROOT = $share et les .so dans $share/lib.
+            # ImageMagick fournit le repli de décodage des formats non gérés par raylib
+            # (webp, avif, jp2, heic…) : on l'ajoute au PATH du lanceur (cf. display.load_image).
             makeWrapper ${pkgs.luajit}/bin/luajit "$out/bin/diapo" \
               --add-flags "$share/src/main.lua" \
               --set DIAPO_ROOT "$share" \
               --set RAYLIB_SO "${raylib}/lib/libraylib.so" \
               --set LUA_PATH "$share/src/?.lua;$share/ffi/?.lua;;" \
+              --prefix PATH : "${pkgs.imagemagick}/bin" \
               --prefix LD_LIBRARY_PATH : "$share/lib:${raylib}/lib" \
               --prefix LD_PRELOAD : "$share/lib/diapo_appid.so" \
               --set DIAPO_APP_ID diapo \
@@ -139,6 +142,7 @@
             luajit
             luajitPackages.moonscript
             raylib
+            imagemagick      # repli de décodage webp/avif/jp2/heic… (display.load_image)
             gcc
             git
           ];

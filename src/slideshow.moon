@@ -17,7 +17,7 @@ denorm_faces = (faces, iw, ih) ->
 -- Renvoie nil en cas d'échec de chargement.
 prepare = (path, cfg, reverse, override) ->
   img = ffi.new "Image[1]"
-  img[0] = rl.C.LoadImage path
+  img[0] = display.load_image path
   return nil if img[0].width == 0 or img[0].height == 0
 
   -- Orientation EXIF
@@ -129,20 +129,39 @@ run = (paths, cfg, refresh, overrides={}) ->
 
   want = nil         -- index cible d'une navigation manuelle en attente (sinon nil)
 
-  preload_next = ->
-    return if nxt or submitted or n < 2
-    -- Fin de cycle : la suivante reboucle sur la première -> on réactualise la liste
-    -- d'abord, puis on précharge la première image du nouveau cycle.
-    if wrap(ci + 1) == 1
-      refresh_paths!
-      nxt_i = 1
+  -- Index suivant `base`, avec réactualisation de la liste au rebouclage sur la première.
+  next_index = (base) ->
+    if wrap(base + 1) == 1
+      refresh_paths!     -- fin de cycle : récupère les images ajoutées/supprimées
+      1
     else
-      nxt_i = wrap ci + 1
+      wrap base + 1
+
+  -- Compteur d'échecs de chargement consécutifs (images illisibles : format non géré,
+  -- fichier corrompu…). Remis à zéro dès qu'un chargement réussit. Au-delà de `n`, on
+  -- renonce (toutes les images sont illisibles) pour ne pas boucler indéfiniment.
+  load_fail = 0
+
+  -- Précharge la première image chargeable APRÈS l'index `base` (saute les illisibles).
+  preload_from = (base) ->
+    return if nxt or submitted or n < 2
     if use_async
+      nxt_i = next_index base
       async.submit paths[nxt_i], cfg, rev_for(nxt_i), display.aspect!, ov(paths[nxt_i])
       submitted = true
     else
-      nxt = prepare paths[nxt_i], cfg, rev_for(nxt_i), ov(paths[nxt_i])
+      -- Synchrone : prepare bloque déjà ; on saute les images illisibles (prepare nil).
+      b = base
+      for _ = 1, n
+        i = next_index b
+        cand = prepare paths[i], cfg, rev_for(i), ov(paths[i])
+        if cand
+          nxt, nxt_i = cand, i
+          return
+        io.stderr\write "diapo: image illisible, ignorée : #{paths[i]}\n"
+        b = i
+
+  preload_next = -> preload_from ci
 
   -- État du fondu enchaîné.
   fading = false
@@ -321,8 +340,14 @@ run = (paths, cfg, refresh, overrides={}) ->
       if async.ready!
         nxt = async.finalize cfg
         submitted = false
+        load_fail = 0
       elseif async.errored!
         submitted = false
+        async.reset!                         -- libère le worker (état 3 -> 0)
+        load_fail += 1
+        io.stderr\write "diapo: image illisible, ignorée : #{paths[nxt_i]}\n"
+        -- on saute l'image défaillante et on précharge la suivante (sauf si toutes échouent)
+        preload_from nxt_i if load_fail < n
 
     service_nav now      -- fait avancer une éventuelle navigation manuelle
 

@@ -26,7 +26,7 @@ process = ->
   facedetect.membar!          -- acquire : voir les entrées publiées par le thread principal
   path = ffi.string job.path
   img = ffi.new "Image[1]"
-  img[0] = rl.C.LoadImage path
+  img[0] = display.load_image path   -- raylib + repli conversion externe (webp/avif/jp2…)
   if img[0].width == 0 or img[0].height == 0
     job.state = 3
     return

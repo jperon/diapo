@@ -6,6 +6,7 @@ pkgs.mkShell {
     luajit
     luajitPackages.moonscript   # fournit `moonc`
     raylib                      # libraylib.so
+    imagemagick                 # repli de décodage webp/avif/jp2/heic… (display.load_image)
     gcc                         # g++ pour compiler libfacedetection
     git
   ];

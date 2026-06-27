@@ -104,6 +104,45 @@ should_close = -> C.WindowShouldClose!
 screen = -> state.w, state.h
 aspect = -> state.w / state.h
 
+-- Détecte la présence d'une commande externe (convertisseur de secours).
+have_cmd = (name) ->
+  h = io.popen "command -v #{name} 2>/dev/null"
+  return false unless h
+  line = h\read "*l"
+  h\close!
+  line != nil and #line > 0
+
+-- Convertisseur d'images de secours (résolu une fois) : pour les formats que raylib ne sait
+-- pas décoder (webp, avif, jp2, heic…), on convertit en PNG temporaire via ImageMagick.
+converter = false                     -- false = non résolu ; nil = aucun ; chaîne = commande
+resolve_converter = ->
+  unless converter == false
+    return converter
+  converter = nil
+  for c in *{ "magick", "convert" }
+    if have_cmd c
+      converter = c
+      break
+  converter
+
+-- Charge une image depuis un chemin (CPU, sans GL). Tente raylib d'abord ; si le format
+-- n'est pas géré (largeur 0), convertit via le convertisseur externe vers un PNG temporaire
+-- (orienté selon l'EXIF, -auto-orient) puis le charge. Renvoie une Image raylib (width 0 si
+-- échec total). L'appelant doit la libérer (UnloadImage).
+load_image = (path) ->
+  img = C.LoadImage path
+  return img if img.width > 0
+  cmd = resolve_converter!
+  return img unless cmd                -- pas de convertisseur : on renvoie l'image vide
+  base = os.tmpname!
+  tmp = base .. ".png"
+  shell = string.format "%s %q -auto-orient %q 2>/dev/null", cmd, path, tmp
+  os.execute shell
+  img = C.LoadImage tmp
+  os.remove tmp
+  os.remove base
+  img
+
 -- Image (CPU) -> Texture (GPU), avec filtrage bilinéaire pour un zoom lisse.
 load_texture = (img) ->
   tex = C.LoadTextureFromImage img
@@ -195,7 +234,7 @@ hidden = -> C.IsWindowState(rl.FLAG_WINDOW_MINIMIZED) or C.IsWindowHidden!
 focused = -> C.IsWindowFocused!
 wait = (s) -> sleep s
 
-{ :init, :close, :should_close, :screen, :aspect, :load_texture, :unload_texture,
+{ :init, :close, :should_close, :screen, :aspect, :load_image, :load_texture, :unload_texture,
   :draw_slide, :draw_debug_rect, :make_background_image, :draw_background,
   :begin_frame, :end_frame, :clear, :frame_time, :time, :key_pressed, :char_pressed,
   :mouse_pressed, :mouse_x, :touch_pressed, :touch_x, :hidden, :focused, :wait, :sleep,
