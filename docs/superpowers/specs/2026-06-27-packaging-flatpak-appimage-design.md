@@ -8,7 +8,8 @@ App-ID retenu : `io.github.jperon.diapo`
 Faciliter l'installation de **diapo** (LuaJIT/MoonScript + raylib backend SDL +
 libfacedetection, déjà packagé en flake Nix) en fournissant :
 
-1. un **AppImage** x86_64 portable, produit à partir du build Nix existant ;
+1. un **AppImage** portable (x86_64 et aarch64), produit à partir du build Nix
+   existant ;
 2. un **Flatpak** orienté Flathub (build-from-source, runtime `org.freedesktop`),
    avec un bundle `.flatpak` installable directement ;
 3. une **CI GitHub** qui, sur chaque tag `v*`, crée une release et y attache
@@ -49,9 +50,9 @@ nouveaux noms, et pour installer le `metainfo.xml` dans
 
 - Ajout d'un bundler AppImage au `flake.nix` via `nix bundle` (bundler
   `ralismark/nix-appimage` ou équivalent ajouté en input du flake).
-- Sortie : `diapo-<version>-x86_64.AppImage` regroupant la closure (luajit,
-  raylib SDL, les `.so`, assets). Volumineux mais autonome, cohérent avec
-  l'existant.
+- Sortie : `diapo-<version>-<arch>.AppImage` (arch = `x86_64`, `aarch64`)
+  regroupant la closure (luajit, raylib SDL, les `.so`, assets). Volumineux mais
+  autonome, cohérent avec l'existant.
 - Vérification locale : l'AppImage se lance sur `testdata/` (`--window`).
 
 ## 3. Flatpak (orienté Flathub)
@@ -90,11 +91,14 @@ Jobs :
    manifestes). Calcule son sha256.
 2. **release** : crée la GitHub Release (notes auto depuis le tag) et attache le
    tarball source.
-3. **appimage** : `nix bundle` → `diapo-<version>-x86_64.AppImage` → upload sur
-   la release.
-4. **flatpak** : `flatpak/flatpak-github-actions/flatpak-builder` (conteneur
-   freedesktop), build du manifeste, export d'un bundle single-file
-   `diapo-<version>.flatpak` → upload sur la release.
+3. **appimage** (matrice `x86_64`, `aarch64`) : `nix bundle` →
+   `diapo-<version>-<arch>.AppImage` → upload sur la release. Le job `aarch64`
+   tourne sur un runner ARM natif (`ubuntu-24.04-arm`).
+4. **flatpak** (matrice `x86_64`, `aarch64`) :
+   `flatpak/flatpak-github-actions/flatpak-builder` (conteneur freedesktop),
+   build du manifeste, export d'un bundle single-file
+   `diapo-<version>-<arch>.flatpak` → upload sur la release. `aarch64` sur runner
+   ARM natif.
 
 Note : le manifeste Flatpak référence le tarball source produit au job 1. Pour le
 premier tag, l'URL/sha256 du tarball est injectée dynamiquement dans le manifeste
@@ -105,7 +109,9 @@ CI), de sorte que `flatpak-builder` reste hors-ligne après résolution.
 
 - Soumission effective à Flathub (PR sur le dépôt `flathub/`).
 - Captures d'écran AppStream (emplacement balisé, à fournir).
-- Builds multi-architectures (aarch64) — x86_64 uniquement dans un premier temps.
+- Architectures autres que `x86_64` et `aarch64` (les deux cibles Linux
+  raisonnables sont couvertes ; libfacedetection gère AVX2 sur x86_64 et NEON sur
+  ARM).
 - Signature des artefacts / mises à jour delta AppImage.
 
 ## Vérification
@@ -116,5 +122,6 @@ CI), de sorte que `flatpak-builder` reste hors-ligne après résolution.
   du tarball) et l'app se lance via `flatpak run io.github.jperon.diapo`.
 - `appstreamcli validate` et `desktop-file-validate` passent sur les
   métadonnées.
-- Un tag de test (`v0.0.0-test`) déclenche le workflow et produit les trois
-  artefacts attachés à une release.
+- Un tag de test (`v0.0.0-test`) déclenche le workflow et produit, pour chaque
+  architecture (`x86_64`, `aarch64`), l'AppImage et le bundle Flatpak attachés à
+  une release, plus le tarball source.
