@@ -110,6 +110,16 @@ Si, malgré le lookahead, *i+1* n'est pas encore prête au démarrage de *i* (wo
 en cours d'indexation), repli : `i.finish` naturelle, recalée si *i+1* arrive avant la fin du
 mouvement (réutilise le mécanisme de recalcul déjà présent pour le redimensionnement).
 
+> **Note d'implémentation (as-built).** Plutôt qu'un 2ᵉ emplacement de préchargement distinct,
+> l'harmonisation est réalisée en **surcouche** sur les plans naturels (les rectangles
+> `start`/`finish` harmonisés écrasent les rectangles naturels, conservés à part pour le
+> recalcul). Le préchargement de *i+1* est déclenché **dès le début du fondu** (et non après) :
+> comme le mouvement de *i* ne démarre qu'à la fin du fondu, `i.finish` est en pratique fixé
+> avant le premier frame de mouvement → pas de recalage visible en régime établi. Seule la
+> toute première image peut subir un ajustement unique (pas de fondu initial pour masquer le
+> chargement). Si l'harmonisation échoue ou est désactivée, aucune surcouche n'est posée : le
+> comportement est identique à l'existant.
+
 ### Conséquence sur le découpage worker / thread principal
 
 Le calcul des rectangles `start`/`finish` (couplé aux voisins) **remonte au thread principal**.

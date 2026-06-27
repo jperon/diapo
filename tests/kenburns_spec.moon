@@ -75,5 +75,41 @@ p2 = kb.plan IW, IH, { faceL }, { aspect: 1.0, arc_dir: "both", arc_sign: p1.arc
 ok math.abs(p1.arc_dx - p2.arc_dx) < 1e-9 and math.abs(p1.arc_dy - p2.arc_dy) < 1e-9,
   "arc_sign mémorisé : composantes reproduites au recalcul"
 
+-- ── Harmonisation des transitions ───────────────────────────────────────────────────────
+-- view_for_placement : le visage atterrit bien au placement demandé.
+do
+  face = { cx: 300, cy: 200, h: 80 }
+  P = { sx: 0.5, sy: 0.4, hs: 0.25 }
+  v = kb.view_for_placement face, P, 16/9
+  ok math.abs(face.h / v.h - 0.25) < 1e-9, "view_for_placement : taille écran = hs"
+  ok math.abs((face.cx - v.x)/v.w - 0.5) < 1e-9, "view_for_placement : sx respecté"
+  ok math.abs((face.cy - v.y)/v.h - 0.4) < 1e-9, "view_for_placement : sy respecté"
+
+-- joint_placement : deux visages compatibles -> placement commun, coïncidence écran.
+do
+  mk = (cx) -> {
+    face: { :cx, cy: 500, h: 100 }, full_h: 1000, zmin: 0.8, zmax: 3.0
+    img_w: 1000, img_h: 1000, free_x: false, free_y: false
+    nat_view: { x: 0, y: 0, w: 1000, h: 1000 }
+  }
+  A, B = mk(400), mk(600)
+  vA, vB, okj = kb.joint_placement A, B, 1.0, 0.3, 0.3
+  ok okj, "joint_placement : réussit pour deux visages compatibles"
+  if okj
+    ok math.abs(A.face.h/vA.h - B.face.h/vB.h) < 1e-9, "joint : visages de même taille écran"
+    sxA = (A.face.cx - vA.x)/vA.w
+    sxB = (B.face.cx - vB.x)/vB.w
+    ok math.abs(sxA - sxB) < 1e-9, "joint : visages à la même position écran"
+
+-- joint_placement : tailles inconciliables (zoom figé) hors tolérance -> renoncement.
+do
+  base = (h) -> {
+    face: { cx: 500, cy: 500, :h }, full_h: 1000, zmin: 1.0, zmax: 1.0
+    img_w: 1000, img_h: 1000, free_x: false, free_y: false
+    nat_view: { x: 0, y: 0, w: 1000, h: 1000 }
+  }
+  _, _, okj = kb.joint_placement base(20), base(400), 1.0, 0.1, 0.3
+  ok not okj, "joint_placement : renonce si tailles inconciliables (hors tolérance)"
+
 print "kenburns: #{passed} ok, #{failed} échec(s)"
 os.exit(failed == 0 and 0 or 1)

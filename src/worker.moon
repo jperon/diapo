@@ -95,6 +95,13 @@ process = ->
   job.start_x, job.start_y, job.start_w, job.start_h = s.x, s.y, s.w, s.h
   job.finish_x, job.finish_y, job.finish_w, job.finish_h = e.x, e.y, e.w, e.h
   job.arc_dx, job.arc_dy, job.arc_sign = plan.arc_dx, plan.arc_dy, plan.arc_sign
+  -- Données d'harmonisation des transitions
+  if plan.harm
+    job.harm_cx, job.harm_cy = plan.harm.cx, plan.harm.cy
+    job.harm_w, job.harm_h = plan.harm.w, plan.harm.h
+  else
+    job.harm_h = 0
+  job.full_h, job.zmin_eff, job.zmax_eff = plan.full_h, plan.zmin, plan.zmax
 
   -- Premier plan : on transmet la propriété des pixels (le thread principal libérera).
   job.img_data = img[0].data

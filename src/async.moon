@@ -128,6 +128,11 @@ finalize = (cfg) ->
     arc_dx: j.arc_dx
     arc_dy: j.arc_dy
     arc_sign: j.arc_sign
+    -- harmonisation des transitions (visage de référence + bornes de zoom)
+    harm: j.harm_h > 0 and { cx: j.harm_cx, cy: j.harm_cy, w: j.harm_w, h: j.harm_h } or nil
+    full_h: j.full_h
+    zmin: j.zmin_eff
+    zmax: j.zmax_eff
 
   -- focus = visage cadré choisi par le worker (0 = tous) ; mémorisé pour les recalculs
   -- (redimensionnement) afin que le visage cadré ne change pas en cours de diapo.

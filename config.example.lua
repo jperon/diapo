@@ -39,6 +39,10 @@ return {
   face_arc     = 0.12,   -- amplitude de la bosse (le cadrage dévie puis revient) ; 0 = désactivé
   face_arc_dir = "both", -- sens de la bosse selon la position du sujet : "toward" (vers le
                          -- sujet), "away" (à l'opposé) ou "both" (tiré au hasard à chaque image)
+  harmonize    = true,   -- fait coïncider les visages de deux images consécutives pendant le
+                         -- fondu (vues de fin/début calculées conjointement) ; false = indép.
+  harmonize_zoom_tol = 0.25, -- écart relatif de taille de visage toléré avant de renoncer
+  harmonize_pos_tol  = 0.15, -- décalage de position écran toléré (fraction d'écran)
   zoom_out     = 1.0,    -- >1 : autorise un dézoom au-delà de l'image (ex. 1.3)
   zoom_max     = 0.0,    -- magnification max de la vue serrée (0 = pas de limite)
   zoom_min     = 0.0,    -- magnification min de la vue large (plancher ; 0 = pas de plancher)

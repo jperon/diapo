@@ -38,6 +38,8 @@ typedef struct {
   int    focus;
   double arc_dx, arc_dy;
   int    arc_sign;
+  double harm_cx, harm_cy, harm_w, harm_h;
+  double full_h, zmin_eff, zmax_eff;
   float  faces[320];
 } DiapoJob;
 ]]

@@ -194,6 +194,15 @@ affichée au démarrage.
   plein-cadre). Le zoom serré effectif vaut `min(zoom_max, zoom_calculé)` (évite de trop
   zoomer sur un petit visage) ; le zoom large effectif vaut `max(zoom_min, zoom_calculé)`.
   `0` = pas de limite.
+- **`harmonize`** : fait **coïncider les visages** de deux images consécutives pendant le
+  fondu. La vue de fin de l'image sortante et la vue de départ de l'entrante sont calculées
+  **conjointement** : on cherche un placement écran commun du visage (position + taille), pour
+  que les deux visages se superposent au moment du fondu. Priorité à la coïncidence, puis au
+  bon positionnement de chaque image (éviter une vue trop désaxée), enfin à l'harmonisation du
+  zoom — une imprécision « poétique » est tolérée. Les marges `harmonize_zoom_tol` (écart
+  relatif de taille) et `harmonize_pos_tol` (décalage de position, fraction d'écran) bornent
+  cette tolérance ; au-delà, on retombe sur les vues naturelles. Une image sans visage détecté
+  garde le cadrage centré habituel. `harmonize = false` rétablit le comportement indépendant.
 - **Fondu sur image immobile** : le fondu enchaîné a lieu **après** le mouvement Ken Burns,
   sur des images figées (l'ancienne sur sa dernière vue, la nouvelle sur sa première), et sa
   durée s'**ajoute** à celle de l'animation (temps total par image = `duration + fade`).

@@ -128,6 +128,39 @@ run = (paths, cfg, refresh, overrides={}) ->
   cur_start = 0      -- instant de départ du mouvement de la diapo courante
 
   want = nil         -- index cible d'une navigation manuelle en attente (sinon nil)
+  harm_pending = false  -- une (re)harmonisation cur<->nxt est à (re)calculer
+
+  -- Mémorise les rectangles naturels du plan (avant toute surcouche d'harmonisation), pour
+  -- pouvoir recalculer l'harmonisation à partir du cadrage d'origine (et la cible de zoom).
+  ensure_natural = (plan) ->
+    unless plan.nat_start
+      plan.nat_start = { k, v for k, v in pairs plan.start }
+      plan.nat_finish = { k, v for k, v in pairs plan.finish }
+    plan
+
+  -- Harmonise la transition a (sortante) -> b (entrante) : calcule un placement commun des
+  -- deux visages et l'applique en surcouche (a.finish et b.start). Sans effet si désactivé,
+  -- si un visage manque, ou si l'écart dépasse les tolérances (-> vues naturelles).
+  harmonize = (a, b) ->
+    return unless cfg.harmonize != false and a and b and a.plan.harm and b.plan.harm
+    ensure_natural a.plan
+    ensure_natural b.plan
+    blur = (cfg.zoom_out or 1) > 1
+    side = (s, nat) -> {
+      face: s.plan.harm, full_h: s.plan.full_h, zmin: s.plan.zmin, zmax: s.plan.zmax
+      img_w: s.plan.img_w, img_h: s.plan.img_h, free_x: blur, free_y: blur, nat_view: nat
+    }
+    vA, vB, ok = kenburns.joint_placement (side a, a.plan.nat_finish), (side b, b.plan.nat_start),
+      display.aspect!, cfg.harmonize_zoom_tol or 0.25, cfg.harmonize_pos_tol or 0.15
+    return unless ok
+    a.plan.finish = vA
+    b.plan.start = vB
+    iw, ih = a.plan.img_w, a.plan.img_h
+    a.plan.free_x = a.plan.start.w > iw + 0.5 or vA.w > iw + 0.5
+    a.plan.free_y = a.plan.start.h > ih + 0.5 or vA.h > ih + 0.5
+    iw, ih = b.plan.img_w, b.plan.img_h
+    b.plan.free_x = vB.w > iw + 0.5 or b.plan.finish.w > iw + 0.5
+    b.plan.free_y = vB.h > ih + 0.5 or b.plan.finish.h > ih + 0.5
 
   -- Index suivant `base`, avec réactualisation de la liste au rebouclage sur la première.
   next_index = (base) ->
@@ -157,6 +190,7 @@ run = (paths, cfg, refresh, overrides={}) ->
         cand = prepare paths[i], cfg, rev_for(i), ov(paths[i])
         if cand
           nxt, nxt_i = cand, i
+          harm_pending = true
           return
         io.stderr\write "diapo: image illisible, ignorée : #{paths[i]}\n"
         b = i
@@ -193,6 +227,7 @@ run = (paths, cfg, refresh, overrides={}) ->
 
   begin_transition = (to, to_i, now) ->
     rebuild_plan to                 -- la diapo entrante adopte le ratio d'écran courant
+    harmonize cur, to               -- restaure le départ harmonisé de l'entrante (cur.finish déjà figé)
     e_i = now - cur_start
     fade_from = cur
     fade_from_p0 = progress e_i
@@ -202,6 +237,7 @@ run = (paths, cfg, refresh, overrides={}) ->
     cur = to
     ci = to_i
     cur_start = now + fade
+    harm_pending = true             -- harmoniser le nouveau cur avec sa future suivante
 
   -- Fait progresser une navigation manuelle SANS bloquer le rendu : on confie la cible au
   -- worker et on continue d'animer l'image courante jusqu'à ce que la cible soit prête,
@@ -284,6 +320,7 @@ run = (paths, cfg, refresh, overrides={}) ->
           fading = false
         rebuild_plan cur
         rebuild_plan nxt
+        harm_pending = true               -- ré-harmoniser cur<->nxt au nouveau ratio
         cur_start = real - paused_total   -- relance le mouvement de la courante
         fadein_t0 = real - paused_total   -- ... avec un fondu d'apparition
       else
@@ -341,6 +378,7 @@ run = (paths, cfg, refresh, overrides={}) ->
         nxt = async.finalize cfg
         submitted = false
         load_fail = 0
+        harm_pending = true                  -- l'image suivante est prête : (ré)harmoniser
       elseif async.errored!
         submitted = false
         async.reset!                         -- libère le worker (état 3 -> 0)
@@ -350,6 +388,13 @@ run = (paths, cfg, refresh, overrides={}) ->
         preload_from nxt_i if load_fail < n
 
     service_nav now      -- fait avancer une éventuelle navigation manuelle
+
+    -- (Ré)harmonise la transition cur -> nxt dès que les deux sont disponibles. En régime
+    -- établi, nxt est préchargée pendant le fondu, donc cur.finish est fixé avant le début du
+    -- mouvement (pas de recalage visible) ; sinon, l'ajustement survient dès l'arrivée de nxt.
+    if harm_pending and cur and nxt
+      harmonize cur, nxt
+      harm_pending = false
 
     elapsed = now - cur_start
 
@@ -400,6 +445,7 @@ run = (paths, cfg, refresh, overrides={}) ->
         nxt = nil
         nxt_i = nil
         begin_transition t, ti, now
+        preload_next!     -- précharge la suivante PENDANT le fondu (harmonisation avant le mouvement)
       -- sinon : la suivante n'est pas encore prête, on patiente (image figée sur sa fin)
 
   async.stop! if use_async

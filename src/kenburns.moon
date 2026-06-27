@@ -201,8 +201,82 @@ plan = (img_w, img_h, faces, opts={}) ->
   -- serré). Le sens est tiré (ou repris via opts.arc_sign pour rester stable au recalcul).
   arc_dx, arc_dy, arc_sign = arc_components bbox, img_w, img_h, (opts.arc_dir or "both"), opts.arc_sign
 
+  -- Données d'harmonisation des transitions (cf. joint_placement) : le visage de référence
+  -- (bbox du sous-ensemble cadré) en coord. image, les bornes de zoom effectives et la
+  -- hauteur plein-cadre. `harm` nil = pas de visage -> pas d'harmonisation (repli centré).
+  harm = bbox and { cx: bbox.x + bbox.w/2, cy: bbox.y + bbox.h/2, w: bbox.w, h: bbox.h } or nil
+
   { start: start_r, finish: end_r, :aspect, :img_w, :img_h, :free_x, :free_y,
-    :arc_dx, :arc_dy, :arc_sign }
+    :arc_dx, :arc_dy, :arc_sign, :harm, full_h: wide.h, zmin: zmin_eff, zmax: zmax_eff }
+
+-- ── Harmonisation des transitions ──────────────────────────────────────────────────────
+-- Un "placement" P = {sx, sy, hs} décrit où apparaît un visage à l'écran (sx,sy ∈ [0,1]) et
+-- sa taille (hs = fraction de la hauteur écran). Deux images dont les visages sont au MÊME
+-- placement voient leurs visages coïncider pendant le fondu.
+
+-- Vue (rect au ratio `aspect`) plaçant le visage {cx,cy,h} au placement P.
+view_for_placement = (face, P, aspect) ->
+  vh = face.h / P.hs
+  vw = vh * aspect
+  { x: face.cx - P.sx * vw, y: face.cy - P.sy * vh, w: vw, h: vh }
+
+-- Plage de hs réalisable (du zoom) : hs petit = vue large, hs grand = vue serrée.
+hs_range = (face, full_h, zmin, zmax) ->
+  base = face.h / full_h
+  base * zmin, base * zmax
+
+-- Plages de position (sx,sy) gardant la vue dans l'image, à hs fixé. Sur un axe "libre"
+-- (fond flou autorisé), pas de borne -> [0,1].
+pos_range = (face, hs, aspect, img_w, img_h, free_x, free_y) ->
+  vh = face.h / hs
+  vw = vh * aspect
+  sxl, sxh = 0, 1
+  unless free_x
+    sxl = math.max 0, (face.cx + vw - img_w) / vw
+    sxh = math.min 1, face.cx / vw
+  syl, syh = 0, 1
+  unless free_y
+    syl = math.max 0, (face.cy + vh - img_h) / vh
+    syh = math.min 1, face.cy / vh
+  sxl, sxh, syl, syh
+
+-- Choisit une valeur dans l'intersection [alo,ahi]∩[blo,bhi] la plus proche de 0.5 ; si
+-- l'intersection est vide, renvoie le milieu et l'écart (résidu) entre les deux plages.
+overlap_pick = (alo, ahi, blo, bhi) ->
+  lo = math.max alo, blo
+  hi = math.min ahi, bhi
+  if lo <= hi
+    (math.max lo, math.min 0.5, hi), 0
+  else
+    (lo + hi) / 2, lo - hi
+
+-- Placement conjoint de deux côtés A (sortante) et B (entrante), chacun :
+--   { face={cx,cy,h}, full_h, zmin, zmax, img_w, img_h, free_x, free_y, nat_view }
+-- nat_view = vue naturelle de rencontre (cible de taille hs0 = face.h/nat_view.h). Priorité :
+-- coïncidence (même P), puis position proche du centre, le tout dans les tolérances.
+-- Renvoie viewA, viewB, true ; ou nil, nil, false si on renonce (-> repli vues naturelles).
+joint_placement = (A, B, aspect, zoom_tol=0.25, pos_tol=0.15) ->
+  hsA0 = A.face.h / A.nat_view.h
+  hsB0 = B.face.h / B.nat_view.h
+  aMin, aMax = hs_range A.face, A.full_h, A.zmin, A.zmax
+  bMin, bMax = hs_range B.face, B.full_h, B.zmin, B.zmax
+  lo = math.max aMin, bMin
+  hi = math.min aMax, bMax
+  target = math.sqrt hsA0 * hsB0          -- moyenne géométrique des tailles naturelles
+  local hs
+  if lo <= hi
+    hs = math.max lo, math.min target, hi
+  else
+    mid = (lo + hi) / 2
+    return nil, nil, false if (lo - hi) / mid > zoom_tol   -- écart de zoom trop grand
+    hs = mid
+  axl, axh, ayl, ayh = pos_range A.face, hs, aspect, A.img_w, A.img_h, A.free_x, A.free_y
+  bxl, bxh, byl, byh = pos_range B.face, hs, aspect, B.img_w, B.img_h, B.free_x, B.free_y
+  sx, rx = overlap_pick axl, axh, bxl, bxh
+  sy, ry = overlap_pick ayl, ayh, byl, byh
+  return nil, nil, false if rx > pos_tol or ry > pos_tol   -- positions inconciliables
+  P = { :sx, :sy, :hs }
+  (view_for_placement A.face, P, aspect), (view_for_placement B.face, P, aspect), true
 
 -- Phase brute [0,1] à partir du temps écoulé et de la durée du mouvement.
 -- bounce=true : effet "rebond" (aller-retour) si l'affichage dure plus que le mouvement.
@@ -248,4 +322,5 @@ at = (kb, e, arc=0) ->
   r
 
 { :plan, :at, :phase, :ease, :full_rect, :faces_bbox, :fit_aspect, :clamp_rect,
-  :expand_to_contain, :eye_points, :arc_components }
+  :expand_to_contain, :eye_points, :arc_components,
+  :view_for_placement, :hs_range, :pos_range, :joint_placement }

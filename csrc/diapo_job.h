@@ -45,6 +45,10 @@ typedef struct {
   int    focus;          // index (1-based) du visage cadré serré, 0 = tous (sortie worker)
   double arc_dx, arc_dy; // composantes de la bosse d'arc (signe inclus)
   int    arc_sign;       // sens tiré (+1/-1), mémorisé pour le recalcul au resize
+  // Données d'harmonisation des transitions (cf. kenburns.joint_placement).
+  // harm_h<=0 = aucun visage -> pas d'harmonisation pour cette image.
+  double harm_cx, harm_cy, harm_w, harm_h;
+  double full_h, zmin_eff, zmax_eff;
   float  faces[DIAPO_MAX_FACES * 5];   // x,y,w,h,score par visage (entrée override / sortie debug)
 } DiapoJob;
 
