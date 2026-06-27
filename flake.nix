@@ -9,9 +9,13 @@
       url = "github:ShiqiYu/libfacedetection";
       flake = false;
     };
+    nix-appimage = {
+      url = "github:ralismark/nix-appimage";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, libfacedetection }:
+  outputs = { self, nixpkgs, flake-utils, libfacedetection, nix-appimage }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };

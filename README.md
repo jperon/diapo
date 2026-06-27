@@ -12,7 +12,29 @@ de caméra est cadré pour que les visages restent visibles et bien centrés.
   backend **SDL** (et non GLFW) : sous Wayland natif, seul SDL transmet le tactile (`wl_touch`)
   et offre un vsync qui met la boucle en veille (≈ 4 % CPU au lieu de saturer un cœur).
 
-## Installation / lancement avec Nix (flake)
+## Installation
+
+### AppImage (Linux, sans Nix)
+
+Téléchargez le fichier `diapo-<version>-<arch>.AppImage` depuis les
+[releases GitHub](https://github.com/jperon/diapo/releases), puis :
+
+```sh
+chmod +x diapo-*.AppImage
+./diapo-*.AppImage <dossier>          # diaporama plein écran
+./diapo-*.AppImage                    # ouvre un sélecteur de dossier
+```
+
+L'AppImage est autonome : il embarque LuaJIT, raylib (SDL), libfacedetection et
+tous les assets — aucune dépendance système requise.
+
+Pour construire localement depuis les sources :
+
+```sh
+packaging/appimage/build.sh           # produit diapo-<version>-<arch>.AppImage
+```
+
+### Installation / lancement avec Nix (flake)
 
 Le plus simple, sans rien cloner ni compiler à la main :
 
