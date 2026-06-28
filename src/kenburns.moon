@@ -240,13 +240,13 @@ pos_range = (face, hs, aspect, img_w, img_h, free_x, free_y) ->
     syh = math.min 1, face.cy / vh
   sxl, sxh, syl, syh
 
--- Choisit une valeur dans l'intersection [alo,ahi]∩[blo,bhi] la plus proche de 0.5 ; si
+-- Choisit une valeur dans l'intersection [alo,ahi]∩[blo,bhi] la plus proche de `target` ; si
 -- l'intersection est vide, renvoie le milieu et l'écart (résidu) entre les deux plages.
-overlap_pick = (alo, ahi, blo, bhi) ->
+overlap_pick = (alo, ahi, blo, bhi, target) ->
   lo = math.max alo, blo
   hi = math.min ahi, bhi
   if lo <= hi
-    (math.max lo, math.min 0.5, hi), 0
+    (math.max lo, math.min target, hi), 0
   else
     (lo + hi) / 2, lo - hi
 
@@ -276,16 +276,22 @@ joint_placement = (A, B, aspect, zoom_tol=0.25, pos_tol=0.15) ->
   -- img_w. On garantit le plus facile des deux (min) en remontant hs si besoin (zoom-in).
   fill = (s) -> math.min s.face.h / s.img_h, s.face.h * aspect / s.img_w
   hs = math.max hs, (fill A), (fill B)
+  -- Cible de position = moyenne des positions écran NATURELLES du visage (on respecte ainsi un
+  -- cadrage haut/bas commun au lieu de tout ramener au centre).
+  nat_sx = (s) -> (s.face.cx - s.nat_view.x) / s.nat_view.w
+  nat_sy = (s) -> (s.face.cy - s.nat_view.y) / s.nat_view.h
+  tx = math.max 0, math.min 1, ((nat_sx A) + (nat_sx B)) / 2
+  ty = math.max 0, math.min 1, ((nat_sy A) + (nat_sy B)) / 2
   axl, axh, ayl, ayh = pos_range A.face, hs, aspect, A.img_w, A.img_h, A.free_x, A.free_y
   bxl, bxh, byl, byh = pos_range B.face, hs, aspect, B.img_w, B.img_h, B.free_x, B.free_y
-  sx, rx = overlap_pick axl, axh, bxl, bxh
-  sy, ry = overlap_pick ayl, ayh, byl, byh
+  sx, rx = overlap_pick axl, axh, bxl, bxh, tx
+  sy, ry = overlap_pick ayl, ayh, byl, byh, ty
   return nil, nil, false, math.huge if rx > pos_tol or ry > pos_tol   -- positions inconciliables
   P = { :sx, :sy, :hs }
-  -- Coût = compromis : à quel point chaque vue est tirée de SA taille naturelle (hsA0/hsB0),
-  -- plus le résidu de position et un léger malus de décentrage.
+  -- Coût = compromis : à quel point chaque vue est tirée de SA taille naturelle (hsA0/hsB0) et
+  -- de sa position naturelle, plus le résidu d'intersection.
   cost = rx + ry + math.abs(math.log(hs / hsA0)) + math.abs(math.log(hs / hsB0)) +
-    0.3 * (math.abs(sx - 0.5) + math.abs(sy - 0.5))
+    0.3 * (math.abs(sx - tx) + math.abs(sy - ty))
   (view_for_placement A.face, P, aspect), (view_for_placement B.face, P, aspect), true, cost
 
 -- Phase brute [0,1] à partir du temps écoulé et de la durée du mouvement.

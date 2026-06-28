@@ -9,18 +9,24 @@ exif = require "exif"
 SIZE = 8                 -- vignette SIZE×SIZE
 LEN  = SIZE * SIZE * 3   -- 192 octets
 
+-- Signature depuis une Image déjà chargée+orientée (non modifiée : on copie avant de réduire).
+from_image = (rl, img) ->
+  c = ffi.new "Image[1]"
+  c[0] = rl.C.ImageCopy img[0]
+  rl.C.ImageFormat c, rl.PIXELFORMAT_UNCOMPRESSED_R8G8B8
+  rl.C.ImageResize c, SIZE, SIZE
+  src = ffi.cast "unsigned char *", c[0].data
+  sig = [src[i] for i = 0, LEN - 1]
+  rl.C.UnloadImage c[0]
+  sig
+
 compute = (rl, path) ->
   img = ffi.new "Image[1]"
   img[0] = rl.C.LoadImage path
   return nil if img[0].data == nil or img[0].width == 0   -- décodage échoué
-
   rl.C.ImageFormat img, rl.PIXELFORMAT_UNCOMPRESSED_R8G8B8
-  exif.apply rl, img, exif.orientation path                -- oriente avant de réduire
-  rl.C.ImageResize img, SIZE, SIZE
-  src = ffi.cast "unsigned char *", img[0].data
-  sig = {}
-  for i = 0, LEN - 1
-    sig[i + 1] = src[i]
+  exif.apply rl, img, exif.orientation path
+  sig = from_image rl, img
   rl.C.UnloadImage img[0]
   sig
 
@@ -35,4 +41,4 @@ distance = (a, b) ->
     d += diff < 0 and -diff or diff
   d
 
-{ :compute, :distance, :neutral, :SIZE, :LEN }
+{ :compute, :from_image, :distance, :neutral, :SIZE, :LEN }

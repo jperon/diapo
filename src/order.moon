@@ -9,6 +9,7 @@
 -- critères placés après elle ne servent qu'à départager des distances strictement égales.
 signature = require "signature"
 exif      = require "exif"
+facedesc  = require "facedesc"
 
 VALID = { folder: true, exif: true, similarity: true }
 -- Alias rétro-compatibles (anciens noms français -> noms canoniques anglais).
@@ -53,7 +54,8 @@ partition_sorted = (items, keyf) ->
 -- Enchaînement plus-proche-voisin sur un groupe (heuristique du voyageur de commerce).
 -- Graine déterministe = item de plus petit chemin ; départage des distances égales par
 -- chemin, pour un résultat reproductible quel que soit l'ordre d'entrée.
-nn_chain = (items) ->
+nn_chain = (items, dist) ->
+  dist or= (a, b) -> signature.distance a.sig, b.sig
   n = #items
   return items if n <= 1
   seed = 1
@@ -67,7 +69,7 @@ nn_chain = (items) ->
     best, bestd = nil, nil
     for j = 1, n
       continue if used[j]
-      dj = signature.distance items[last].sig, items[j].sig
+      dj = dist items[last], items[j]
       if (not bestd) or dj < bestd or (dj == bestd and items[j].path < items[best].path)
         best, bestd = j, dj
     used[best] = true
@@ -76,17 +78,17 @@ nn_chain = (items) ->
   out
 
 -- Ordonne récursivement un groupe selon la suite de critères `crits`.
-order_group = (items, crits) ->
+order_group = (items, crits, dist) ->
   return items if #items <= 1 or #crits == 0
   crit = crits[1]
   rest = [crits[i] for i = 2, #crits]
   if crit == "similarity"
-    nn_chain items
+    nn_chain items, dist
   else
     keyf = crit == "folder" and ((it) -> it.dir) or ((it) -> it.stamp)
     out = {}
     for g in *partition_sorted items, keyf
-      for it in *order_group g, rest
+      for it in *order_group g, rest, dist
         out[#out + 1] = it
     out
 
@@ -132,10 +134,10 @@ load_cache = ->
   f = io.open cache_path!, "r"
   return out unless f
   for line in f\lines!
-    tok, path, hex = line\match "^([^\t]*)\t([^\t]*)\t(%x+)$"
+    tok, path, hex, desc = line\match "^([^\t]*)\t([^\t]*)\t(%x+)\t?(.*)$"
     if path
       sig = hex_decode hex
-      out[path] = { token: tok, sig: sig } if sig
+      out[path] = { token: tok, sig: sig, desc: (desc != "" and facedesc.decode(desc) or nil) } if sig
   f\close!
   out
 
@@ -145,7 +147,10 @@ save_cache = (entries) ->
   f = io.open path, "w"
   return unless f
   for p, e in pairs entries
-    f\write "#{e.token or ''}\t#{p}\t#{hex_encode e.sig}\n" if e.sig
+    if e.sig
+      line = "#{e.token or ''}\t#{p}\t#{hex_encode e.sig}"
+      line ..= "\t#{facedesc.encode e.desc}" if e.desc
+      f\write line .. "\n"
   f\close!
 
 --------------------------------------------------------------------------------- public
@@ -165,9 +170,27 @@ order = (paths, cfg={}, meta) ->
   need_sig = false
   for c in *crits
     need_sig = true if c == "similarity"
+  need_faces = need_sig and (cfg.face_weight or 0) > 0
 
   cache = need_sig and load_cache! or {}
   rl = need_sig and require("raylib") or nil
+  facedetect = need_faces and require("facedetect") or nil
+  ffi = need_sig and require("ffi") or nil
+
+  -- Charge l'image une fois et calcule signature (+ descripteur visage si demandé).
+  features = (p) ->
+    img = ffi.new "Image[1]"
+    img[0] = rl.C.LoadImage p
+    return signature.neutral!, { n: 0 } if img[0].width == 0
+    rl.C.ImageFormat img, rl.PIXELFORMAT_UNCOMPRESSED_R8G8B8
+    exif.apply rl, img, exif.orientation p
+    sig = signature.from_image rl, img
+    desc = nil
+    if need_faces
+      faces = facedetect.detect_image rl, img[0], detect_width: cfg.detect_width, min_score: cfg.min_score
+      desc = facedesc.descriptor faces, img[0].width, img[0].height
+    rl.C.UnloadImage img[0]
+    sig, desc
 
   items = {}
   for p in *list
@@ -175,16 +198,25 @@ order = (paths, cfg={}, meta) ->
     if need_sig
       tok = token_of p, meta
       hit = cache[p]
-      if hit and tok and hit.token == tok
-        it.sig = hit.sig
+      if hit and tok and hit.token == tok and (not need_faces or hit.desc)
+        it.sig, it.face = hit.sig, hit.desc
       else
-        it.sig = signature.compute(rl, p) or signature.neutral!
-        cache[p] = { token: tok, sig: it.sig }
+        it.sig, it.face = features p
+        cache[p] = { token: tok, sig: it.sig, desc: it.face }
     items[#items + 1] = it
 
   save_cache cache if need_sig
 
-  [it.path for it in *order_group items, crits]
+  local dist
+  if need_faces
+    lenmax = signature.LEN * 255
+    fw = cfg.face_weight
+    dist = (a, b) ->
+      d = signature.distance(a.sig, b.sig) / lenmax
+      d += fw * facedesc.distance(a.face, b.face) if a.face and b.face
+      d
+
+  [it.path for it in *order_group items, crits, dist]
 
 { :order, :normalize, :dirname, :to_stamp, :stamp_of, :order_group, :nn_chain,
   :partition_sorted, :shuffle }

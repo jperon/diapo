@@ -20,6 +20,8 @@ return {
   -- (Les anciens noms "dossier"/"similarite" restent acceptés.)
   order        = { "folder", "similarity" },
   recursive    = true,
+  face_weight  = 0.5,    -- poids des visages dans la similarité (0 = couleur seule, aucune
+                         -- détection à l'ordonnancement) ; n'agit que si "similarity" est utilisé
   detect_width = 480,    -- largeur de travail pour la détection (px) ; ↑ = + précis, − rapide
   min_score    = 70,     -- seuil de confiance des visages (0..100)
   detect_rotated = false,-- true : détecte aussi sur ±90° même quand un visage est déjà

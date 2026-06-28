@@ -101,7 +101,8 @@ nix-shell --run './diapo ~/Photos'
   --no-shuffle         ordre déterministe (par défaut alphabétique ; voir --order)
   --order <liste>      priorité d'ordonnancement (implique --no-shuffle), critères
                        séparés par des virgules parmi : folder, exif, similarity
-                       (ex. folder,similarity = parcours visuellement fluide par dossier)
+                       (ex. folder,similarity = parcours visuellement fluide par dossier ;
+                       la similarité combine couleur et visages, cf. face_weight)
   --detect-rotated     détecte aussi sur ±90° même si un visage est déjà trouvé (plus lent ;
                        utile pour les dossiers mêlant photos à l'endroit et tournées)
   --debug-faces        affiche les rectangles des visages détectés
@@ -183,6 +184,13 @@ affichée au démarrage.
   l'accélération/décélération (1 = linéaire, 2 = doux, plus = plus marqué). Lorsque
   `speed > 1`, le mouvement (qui rebondit) **décélère** sur une fenêtre finale pour
   s'immobiliser juste avant le fondu, évitant tout arrêt brusque.
+- **`face_weight`** : pondère les **visages** dans le critère `similarity`. La similarité
+  combine la distance couleur (vignette 8×8) et une distance « visages » (nombre + position/
+  taille du visage dominant), normalisées : `distance = couleur + face_weight · visages`. Les
+  portraits se regroupent avec les portraits, les visages de disposition voisine s'enchaînent
+  (utile aussi pour les transitions harmonisées). Nécessite une détection à l'ordonnancement
+  (mise en cache disque), effectuée seulement si `similarity` est utilisé et `face_weight > 0`
+  (`0` = similarité purement couleur, comportement d'origine).
 - **`face_arc`** : pendant le mouvement le cadrage dévie légèrement (bosse sinusoïdale, nulle
   aux extrémités) puis revient à son cadrage final. La déviation est **bi-axe** : son vecteur
   est proportionnel à l'écart du sujet au centre de l'image (sujet décentré → bosse diagonale ;

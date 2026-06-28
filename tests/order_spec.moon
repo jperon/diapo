@@ -72,6 +72,16 @@ do
   eq paths_of(order.order_group items, {"similarity"}), "x,z,y",
     "similarity seule : enchaînement global"
 
+-- order_group / nn_chain avec fonction de distance personnalisée (ex. visages).
+do
+  mk = (path, k) -> { :path, dir: "a", stamp: 1, sig: sig(0), k: k }
+  -- distance = écart sur k ; graine = plus petit chemin (a), puis k croissant.
+  dist = (x, y) -> math.abs x.k - y.k
+  items = { mk("c", 9), mk("a", 0), mk("b", 1) }
+  eq paths_of(order.nn_chain items, dist), "a,b,c", "nn_chain avec distance custom (par k)"
+  eq paths_of(order.order_group items, {"similarity"}, dist), "a,b,c",
+    "order_group propage la distance custom"
+
 -- order : shuffle déterministe (même graine -> même résultat), repli alphabétique
 do
   ps = {"c", "a", "b"}

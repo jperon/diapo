@@ -12,6 +12,8 @@ defaults =
   order:       { "folder" }   -- si shuffle=false : priorité d'ordonnancement
                               -- ("folder", "exif", "similarity" ; cf config.example.lua)
   recursive:   true
+  face_weight: 0.5      -- poids des visages dans la similarité (0 = couleur seule, pas de
+                        -- détection à l'ordonnancement) ; n'agit que si "similarity" est utilisé
   detect_width: 480     -- largeur de travail pour la détection (px)
   min_score:   70       -- seuil de confiance des visages
   detect_rotated: false -- tente aussi la détection sur ±90° même si un visage est trouvé
