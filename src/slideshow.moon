@@ -255,8 +255,13 @@ run = (paths, cfg, refresh, overrides={}) ->
       arc_sign: s.plan and s.plan.arc_sign   -- conserve le sens d'arc tiré au premier calcul
 
   begin_transition = (to, to_i, now) ->
-    rebuild_plan to                 -- la diapo entrante adopte le ratio d'écran courant
-    harmonize cur, to               -- restaure le départ harmonisé de l'entrante (cur.finish déjà figé)
+    -- On ne reconstruit le plan de l'entrante QUE si le ratio d'écran a changé depuis son
+    -- préchargement (sinon son départ déjà harmonisé serait écrasé). Dans ce cas seulement, on
+    -- réharmonise pour restaurer ce départ. En régime normal, `to` est déjà harmonisée (comme
+    -- nxt) et `cur.finish` est figée : on n'y touche pas (pas de saut en fondu).
+    if to.plan.aspect != display.aspect!
+      rebuild_plan to
+      harmonize cur, to
     e_i = now - cur_start
     fade_from = cur
     fade_from_p0 = progress e_i
@@ -421,7 +426,11 @@ run = (paths, cfg, refresh, overrides={}) ->
     -- (Ré)harmonise la transition cur -> nxt dès que les deux sont disponibles. En régime
     -- établi, nxt est préchargée pendant le fondu, donc cur.finish est fixé avant le début du
     -- mouvement (pas de recalage visible) ; sinon, l'ajustement survient dès l'arrivée de nxt.
-    if harm_pending and cur and nxt
+    -- On n'harmonise (donc on ne modifie cur.finish) que TANT QUE le mouvement de cur n'a pas
+    -- commencé (pendant le fondu d'entrée, cur_start est dans le futur ; idem juste après un
+    -- resize). Au-delà, on n'y touche plus : changer la cible en cours de mouvement produirait
+    -- un repositionnement brutal. Si nxt arrive trop tard, cette transition reste « naturelle ».
+    if harm_pending and cur and nxt and now <= cur_start
       choose_direction cur, nxt    -- sans `alternate` : oriente nxt pour la meilleure harmonie
       harmonize cur, nxt
       harm_pending = false

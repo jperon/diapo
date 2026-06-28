@@ -124,5 +124,18 @@ do
   _, _, _, cost_diff  = kb.joint_placement A, mkside(900), 1.0, 0.5, 0.5   -- B démarre large
   ok cost_match < cost_diff, "coût : natures concordantes (serré↔serré) < discordantes"
 
+-- Plancher de couverture : une cible très large ne doit pas « flotter » (les deux dimensions
+-- plus petites que l'écran) ; au moins un axe doit tenir dans l'image.
+do
+  mk = -> {
+    face: { cx: 500, cy: 500, h: 100 }, full_h: 1000, zmin: 0.1, zmax: 6.0
+    img_w: 1000, img_h: 1000, free_x: true, free_y: true
+    nat_view: { x: 0, y: 0, w: 5000, h: 5000 }   -- très large -> hs0 minuscule
+  }
+  vA, vB, okj = kb.joint_placement mk!, mk!, 1.0, 5.0, 5.0
+  ok okj, "couverture : placement calculé"
+  if okj
+    ok vA.w <= 1000 + 1e-6 or vA.h <= 1000 + 1e-6, "couverture : au moins un axe tient dans l'image"
+
 print "kenburns: #{passed} ok, #{failed} échec(s)"
 os.exit(failed == 0 and 0 or 1)

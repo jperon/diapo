@@ -271,6 +271,11 @@ joint_placement = (A, B, aspect, zoom_tol=0.25, pos_tol=0.15) ->
     mid = (lo + hi) / 2
     return nil, nil, false, math.huge if (lo - hi) / mid > zoom_tol   -- écart de zoom trop grand
     hs = mid
+  -- Plancher "couverture écran" : la vue ne doit jamais flotter (les deux dimensions de l'image
+  -- plus petites que l'écran). vh<=img_h <=> hs>=face.h/img_h ; vw<=img_w <=> hs>=face.h*aspect/
+  -- img_w. On garantit le plus facile des deux (min) en remontant hs si besoin (zoom-in).
+  fill = (s) -> math.min s.face.h / s.img_h, s.face.h * aspect / s.img_w
+  hs = math.max hs, (fill A), (fill B)
   axl, axh, ayl, ayh = pos_range A.face, hs, aspect, A.img_w, A.img_h, A.free_x, A.free_y
   bxl, bxh, byl, byh = pos_range B.face, hs, aspect, B.img_w, B.img_h, B.free_x, B.free_y
   sx, rx = overlap_pick axl, axh, bxl, bxh
