@@ -44,9 +44,19 @@ refresh_size = ->
   fw, fh = C.GetScreenWidth!, C.GetScreenHeight!
   if fw > 0 and fh > 0
     state.fw, state.fh = fw, fh
-    portrait = (o == 3 or o == 4)
-    if portrait
-      state.w, state.h = fh, fw     -- aspect affiché = portrait
+    portrait_fb = fh > fw                 -- le framebuffer est-il DÉJÀ en portrait ?
+    -- Orientation réellement affichée : si SDL la connaît on s'y fie, sinon on déduit du
+    -- framebuffer (cas o == UNKNOWN).
+    portrait_disp = switch o
+      when 3, 4 then true                 -- PORTRAIT / PORTRAIT_FLIPPED
+      when 1, 2 then false                -- LANDSCAPE / LANDSCAPE_FLIPPED
+      else portrait_fb
+    -- Canevas logique = orientation affichée. On n'échange les dimensions QUE si le framebuffer
+    -- ne l'est pas déjà : une rotation À CHAUD sous Wayland laisse le framebuffer en paysage
+    -- (échange nécessaire), mais un lancement DÉJÀ en portrait donne un framebuffer portrait —
+    -- l'échanger le re-basculerait en paysage et écraserait l'image.
+    if portrait_disp != portrait_fb
+      state.w, state.h = fh, fw
     else
       state.w, state.h = fw, fh
   state
