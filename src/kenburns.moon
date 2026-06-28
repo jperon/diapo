@@ -311,11 +311,30 @@ ease = (t, power=2) ->
   else
     1 - 0.5 * (2 - 2 * t) ^ power
 
+-- Plafond d'amplitude d'arc garantissant un mouvement MONOTONE sur un axe : la bosse ne doit
+-- jamais inverser le sens de la translation linéaire (sinon le sujet part puis revient = zig-zag).
+-- Position : p(e) = p0 + L·e + A·d·W(e)·sin(πe), avec L = p1-p0 le déplacement linéaire et
+-- W(e) = w0+(w1-w0)·e la taille interpolée. Vitesse : p'(e) = L + A·m(e), où
+-- m(e) = d·((w1-w0)·sin(πe) + W(e)·π·cos(πe)). On impose A·max|m| ≤ 0.9·|L| → p'(e) garde le
+-- signe de L partout. Quand L≈0 (translation nette quasi nulle), le plafond force A→0.
+arc_axis_cap = (L, w0, w1, d) ->
+  return math.huge if d == 0
+  mmax = 0
+  for k = 0, 16
+    e = k / 16
+    W = w0 + (w1 - w0) * e
+    m = math.abs d * ((w1 - w0) * math.sin(math.pi * e) + W * math.pi * math.cos(math.pi * e))
+    am = math.abs m
+    mmax = am if am > mmax
+  return math.huge if mmax == 0
+  0.9 * math.abs(L) / mmax
+
 -- Rectangle interpolé pour une progression `e` déjà lissée (in [0,1]).
 -- `arc` ajoute une bosse bi-axe (nulle aux extrémités, maximale au milieu) : le cadrage
 -- dévie selon un vecteur (kb.arc_dx, kb.arc_dy) dérivé de la position du sujet, puis revient
 -- à son cadrage final. `arc` est l'amplitude scalaire (cfg.face_arc) ; les composantes
--- portent la direction et le signe (sens tiré au calcul du plan).
+-- portent la direction et le signe (sens tiré au calcul du plan). L'amplitude est plafonnée
+-- par axe (arc_axis_cap) pour que la trajectoire reste monotone — garde-fou anti-zig-zag.
 at = (kb, e, arc=0) ->
   e = math.max 0, math.min e, 1
   a, b = kb.start, kb.finish
@@ -326,8 +345,11 @@ at = (kb, e, arc=0) ->
     h: a.h + (b.h - a.h) * e
   if arc != 0
     bump = math.sin math.pi * e
-    r.x += arc * (kb.arc_dx or 0) * r.w * bump
-    r.y += arc * (kb.arc_dy or 0) * r.h * bump
+    dx, dy = (kb.arc_dx or 0), (kb.arc_dy or 0)
+    ax = math.min arc, arc_axis_cap (b.x - a.x), a.w, b.w, dx
+    ay = math.min arc, arc_axis_cap (b.y - a.y), a.h, b.h, dy
+    r.x += ax * dx * r.w * bump
+    r.y += ay * dy * r.h * bump
   -- Écrêtage UNIQUEMENT sur les axes non libres (où aucun fond n'est censé apparaître) :
   -- y borne l'effet d'`arc` ; x est un no-op (interpolation déjà interne). Sur les axes
   -- libres on ne touche à rien -> trajectoire lisse, pas de zig-zag.

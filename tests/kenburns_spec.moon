@@ -57,17 +57,23 @@ ok math.abs(dxc) < 1e-9 and math.abs(dyc) < 1e-9, "sujet centré : bosse nulle"
 dxn, dyn = kb.arc_components nil, 1000, 1000, "both"
 ok dxn == 0 and dyn == 0, "pas de sujet : bosse nulle"
 
--- `at` applique la bosse sur les deux axes au milieu du mouvement (e=0.5, sin=1).
-kbArc = { start: { x: 0, y: 0, w: 1000, h: 1000 }, finish: { x: 0, y: 0, w: 1000, h: 1000 },
+-- `at` applique la bosse au milieu (e=0.5, sin=1) quand la TRANSLATION autorise l'arc plein
+-- (plafond anti-zig-zag non contraignant). La déviation s'ajoute à l'interpolation linéaire.
+kbArc = { start: { x: 0, y: 0, w: 1000, h: 1000 }, finish: { x: 4000, y: 4000, w: 1000, h: 1000 },
           img_w: 1000, img_h: 1000, free_x: true, free_y: true, arc_dx: -0.5, arc_dy: 0.25 }
 mid = kb.at kbArc, 0.5, 0.1
-ok math.abs(mid.x - (0.1 * -0.5 * 1000)) < 1e-6, "at : déviation x = arc·arc_dx·w au milieu"
-ok math.abs(mid.y - (0.1 * 0.25 * 1000)) < 1e-6, "at : déviation y = arc·arc_dy·h au milieu"
+ok math.abs(mid.x - (2000 + 0.1 * -0.5 * 1000)) < 1e-6, "at : déviation x = arc·arc_dx·w au milieu"
+ok math.abs(mid.y - (2000 + 0.1 * 0.25 * 1000)) < 1e-6, "at : déviation y = arc·arc_dy·h au milieu"
 ends = kb.at kbArc, 0.0, 0.1
 ok math.abs(ends.x) < 1e-6 and math.abs(ends.y) < 1e-6, "at : bosse nulle aux extrémités"
 -- arc=0 -> aucune déviation même avec des composantes.
 flat = kb.at kbArc, 0.5, 0
-ok math.abs(flat.x) < 1e-6 and math.abs(flat.y) < 1e-6, "at : arc=0 -> pas de déviation"
+ok math.abs(flat.x - 2000) < 1e-6 and math.abs(flat.y - 2000) < 1e-6, "at : arc=0 -> pas de déviation"
+-- Garde-fou anti-zig-zag : sans translation nette, l'arc est plafonné à 0 (mouvement monotone).
+kbFlat = { start: { x: 0, y: 0, w: 1000, h: 1000 }, finish: { x: 0, y: 0, w: 1000, h: 1000 },
+           img_w: 1000, img_h: 1000, free_x: true, free_y: true, arc_dx: -0.5, arc_dy: 0.25 }
+midF = kb.at kbFlat, 0.5, 0.1
+ok math.abs(midF.x) < 1e-6 and math.abs(midF.y) < 1e-6, "at : translation nulle -> arc supprimé (anti-zig-zag)"
 
 -- arc_sign mémorisé : repasser le sens reproduit exactement les mêmes composantes.
 p1 = kb.plan IW, IH, { faceL }, { aspect: 1.0, arc_dir: "both" }
