@@ -46,6 +46,10 @@ return {
                          -- fondu (vues de fin/début calculées conjointement) ; false = indép.
   harmonize_zoom_tol = 0.25, -- écart relatif de taille de visage toléré avant de renoncer
   harmonize_pos_tol  = 0.15, -- décalage de position écran toléré (fraction d'écran)
+  harmonize_max_shift = 0.2, -- déplacement écran max d'un visage hors de sa position naturelle
+                             -- avant de renoncer (préserve la continuité) ; 0 = désactivé
+  eye_align_max = 0.06,      -- repli quand l'harmonisation renonce (ou mode alternate) : décalage
+                             -- écran max pour rapprocher les yeux des deux images ; 0 = off
   zoom_out     = 1.0,    -- >1 : autorise un dézoom au-delà de l'image (ex. 1.3)
   zoom_max     = 0.0,    -- magnification max de la vue serrée (0 = pas de limite)
   zoom_min     = 0.0,    -- magnification min de la vue large (plancher ; 0 = pas de plancher)

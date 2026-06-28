@@ -206,8 +206,19 @@ plan = (img_w, img_h, faces, opts={}) ->
   -- hauteur plein-cadre. `harm` nil = pas de visage -> pas d'harmonisation (repli centré).
   harm = bbox and { cx: bbox.x + bbox.w/2, cy: bbox.y + bbox.h/2, w: bbox.w, h: bbox.h } or nil
 
+  -- Centroïde des yeux du sous-ensemble cadré (coord. image), pour le repli d'alignement léger
+  -- des yeux quand l'harmonisation complète renonce. nil si aucun landmark d'yeux disponible.
+  eyes_c = nil
+  eyes_pts = eye_points sel
+  if #eyes_pts > 0
+    ex, ey = 0, 0
+    for p in *eyes_pts
+      ex += p.x
+      ey += p.y
+    eyes_c = { x: ex / #eyes_pts, y: ey / #eyes_pts }
+
   { start: start_r, finish: end_r, :aspect, :img_w, :img_h, :free_x, :free_y,
-    :arc_dx, :arc_dy, :arc_sign, :harm, full_h: wide.h, zmin: zmin_eff, zmax: zmax_eff }
+    :arc_dx, :arc_dy, :arc_sign, :harm, :eyes_c, full_h: wide.h, zmin: zmin_eff, zmax: zmax_eff }
 
 -- ── Harmonisation des transitions ──────────────────────────────────────────────────────
 -- Un "placement" P = {sx, sy, hs} décrit où apparaît un visage à l'écran (sx,sy ∈ [0,1]) et

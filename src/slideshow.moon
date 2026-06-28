@@ -112,16 +112,29 @@ run = (paths, cfg, refresh, overrides={}) ->
   progress_vel = (el) ->
     h = 1e-3
     (progress(el + h) - progress(el - h)) / (2 * h)
-  -- Sens du zoom alterné, déterministe selon l'index (indépendant du sens de navigation).
-  rev_for = (i) -> cfg.alternate and (i % 2 == 0) or false
+  -- Sens du zoom de base, déterministe selon l'index (indépendant du sens de navigation).
+  -- Avec `alternate` : strict zoom-in / zoom-out une image sur deux. Sans `alternate` :
+  -- baseline pseudo-aléatoire (hash de l'index) plutôt que zoom-in systématique — sinon
+  -- toute transition non décidée par l'harmonie (`choose_direction`) resterait en zoom-in,
+  -- d'où un biais visible. `choose_direction` réoriente ensuite pour l'harmonie quand elle
+  -- tranche ; cette baseline ne sert que de repli neutre.
+  rev_for = (i) ->
+    return i % 2 == 0 if cfg.alternate
+    h = (i * 1103515245 + 12345) % 2147483648
+    (math.floor(h / 65536) % 2) == 1
   wrap = (i) -> ((i - 1) % n) + 1
 
   use_async = async.start (os.getenv("DIAPO_ROOT") or ".") .. "/src/worker.lua"
 
-  -- Préchargement de la "suivante naturelle" (worker async, sinon synchrone).
-  nxt = nil          -- diapo prête
-  nxt_i = nil        -- son index
-  submitted = false  -- requête async en vol
+  -- Préchargement à profondeur 2 (worker async, sinon synchrone) : `nxt` = suivante,
+  -- `nxt2` = celle d'après. Connaître `nxt2` permet à `choose_direction` d'orienter `nxt`
+  -- en tenant compte de SES DEUX voisines (fenêtre de 3) et d'éviter le « zig-zag ».
+  nxt  = nil          -- diapo prête (suivante)
+  nxt_i = nil         -- son index
+  nxt2 = nil          -- diapo prête (la suivante de `nxt`)
+  nxt2_i = nil        -- son index
+  submitted = false   -- requête async en vol
+  sub_target = nil    -- "nxt" | "nxt2" : slot que la requête en vol remplit
 
   ci = 0             -- index de la diapo courante
   cur = nil
@@ -160,36 +173,108 @@ run = (paths, cfg, refresh, overrides={}) ->
     s.plan.nat_start, s.plan.nat_finish = s.plan.nat_finish, s.plan.nat_start
     s.reverse = not s.reverse
 
-  -- Sans `alternate` : choisit le sens d'animation de l'entrante b qui s'harmonise le mieux
-  -- avec la sortante a (compare le coût des deux orientations possibles de b).
-  choose_direction = (a, b) ->
+  -- Coût plafonné : `joint_placement` renvoie math.huge quand il renonce ; on borne pour qu'un
+  -- côté qui renonce ne rende pas les deux orientations incomparables (l'autre côté tranche).
+  HARM_CAP = 8
+  capped = (c) -> math.min c, HARM_CAP
+
+  -- Sans `alternate` : choisit le sens d'animation de l'entrante `b` pour la meilleure harmonie,
+  -- en tenant compte de TROIS images quand `c` (la suivante de `b`) est connue. On évalue, pour
+  -- chaque orientation de `b`, le coût du côté GAUCHE (rencontre a.finish <-> b.start) ET du côté
+  -- DROIT (b.finish <-> c.start, c pouvant lui-même prendre sa meilleure orientation). Choisir
+  -- le sens de `b` qui minimise la somme évite que les deux bouts de `b` réclament des cadrages
+  -- contradictoires (origine du « zig-zag »). Sans `c`, on retombe sur le choix par paire.
+  choose_direction = (a, b, c) ->
     return if cfg.alternate
     return unless a and b and a.plan and b.plan and a.plan.harm and b.plan.harm
     ensure_natural a.plan
     ensure_natural b.plan
-    keep = harm_cost a, a.plan.nat_finish, b, b.plan.nat_start
-    flip = harm_cost a, a.plan.nat_finish, b, b.plan.nat_finish
+    ensure_natural c.plan if c and c.plan
+    has_c = c and c.plan and c.plan.harm
+    -- côté gauche : a.finish (fixe) <-> départ de b
+    left = (bStart) -> capped harm_cost a, a.plan.nat_finish, b, bStart
+    -- côté droit : fin de b <-> départ de c, c prenant sa meilleure orientation (min des deux)
+    right = (bFinish) ->
+      return 0 unless has_c
+      math.min (capped harm_cost b, bFinish, c, c.plan.nat_start),
+        (capped harm_cost b, bFinish, c, c.plan.nat_finish)
+    -- orientation courante de b : start=nat_start, finish=nat_finish ; inverse : échangés
+    keep = (left b.plan.nat_start) + (right b.plan.nat_finish)
+    flip = (left b.plan.nat_finish) + (right b.plan.nat_start)
     flip_direction b if flip < keep
 
+  -- Recalcule les axes "libres" (fond visible) d'un plan d'après ses extrémités courantes.
+  refresh_free = (plan) ->
+    iw, ih = plan.img_w, plan.img_h
+    plan.free_x = plan.start.w > iw + 0.5 or plan.finish.w > iw + 0.5
+    plan.free_y = plan.start.h > ih + 0.5 or plan.finish.h > ih + 0.5
+
+  -- Déplacement à l'écran du visage entre sa vue naturelle de rencontre `nat` et la vue
+  -- harmonisée `v` (somme des écarts de position normalisés x+y). Mesure de combien le cadrage
+  -- est tiré hors de sa trajectoire naturelle : sert de garde-fou de continuité.
+  face_shift = (face, nat, v) ->
+    math.abs((face.cx - nat.x) / nat.w - (face.cx - v.x) / v.w) +
+    math.abs((face.cy - nat.y) / nat.h - (face.cy - v.y) / v.h)
+
+  -- Repli LÉGER : quand l'harmonisation complète renonce (écart de zoom, conflit, ou mode
+  -- `alternate` aux sens rigides), on décale juste un peu a.finish et b.start (déjà posées en
+  -- vues naturelles) pour rapprocher la position ÉCRAN des yeux, sans toucher au zoom. Le décalage
+  -- est borné par eye_align_max (continuité préservée), et la vue reste dans l'image sur les axes
+  -- non débordants. Sans effet si aucune donnée d'yeux (repli sur le centre du visage).
+  align_eyes = (a, b) ->
+    max = cfg.eye_align_max or 0.06
+    return if max <= 0
+    eye_of = (plan) -> plan.eyes_c or (plan.harm and { x: plan.harm.cx, y: plan.harm.cy })
+    ea, eb = (eye_of a.plan), (eye_of b.plan)
+    return unless ea and eb
+    va, vb = a.plan.finish, b.plan.start
+    sax, say = (ea.x - va.x) / va.w, (ea.y - va.y) / va.h      -- pos écran de l'œil (sortante)
+    sbx, sby = (eb.x - vb.x) / vb.w, (eb.y - vb.y) / vb.h      -- pos écran de l'œil (entrante)
+    tx, ty = (sax + sbx) / 2, (say + sby) / 2                  -- cible = milieu
+    toward = (t, s) -> math.max (s - max), math.min t, (s + max)  -- borne le décalage à `max`
+    place = (plan, v, e, sX, sY) ->
+      v.x = e.x - (toward tx, sX) * v.w
+      v.y = e.y - (toward ty, sY) * v.h
+      unless plan.free_x
+        v.x = math.max 0, math.min v.x, plan.img_w - v.w if v.w <= plan.img_w
+      unless plan.free_y
+        v.y = math.max 0, math.min v.y, plan.img_h - v.h if v.h <= plan.img_h
+    place a.plan, va, ea, sax, say
+    place b.plan, vb, eb, sbx, sby
+
   -- Harmonise la transition a (sortante) -> b (entrante) : calcule un placement commun des
-  -- deux visages et l'applique en surcouche (a.finish et b.start). Sans effet si désactivé,
-  -- si un visage manque, ou si l'écart dépasse les tolérances (-> vues naturelles).
+  -- deux visages et l'applique en surcouche (a.finish et b.start). On repart TOUJOURS des vues
+  -- naturelles (annule une harmonisation précédente). On renonce à la coïncidence complète — en
+  -- gardant le mouvement naturel, continu — si un visage manque, si l'écart de zoom/position
+  -- dépasse les tolérances, ou si le cadrage serait tiré trop loin de sa position naturelle
+  -- (harmonize_max_shift). Dans ces cas (sauf visage absent) on applique le repli léger des yeux.
   harmonize = (a, b) ->
-    return unless cfg.harmonize != false and a and b and a.plan.harm and b.plan.harm
+    return unless a and b and a.plan and b.plan
     ensure_natural a.plan
     ensure_natural b.plan
-    vA, vB, ok = kenburns.joint_placement (harm_side a, a.plan.nat_finish),
-      (harm_side b, b.plan.nat_start),
-      display.aspect!, cfg.harmonize_zoom_tol or 0.25, cfg.harmonize_pos_tol or 0.15
-    return unless ok
-    a.plan.finish = vA
-    b.plan.start = vB
-    iw, ih = a.plan.img_w, a.plan.img_h
-    a.plan.free_x = a.plan.start.w > iw + 0.5 or vA.w > iw + 0.5
-    a.plan.free_y = a.plan.start.h > ih + 0.5 or vA.h > ih + 0.5
-    iw, ih = b.plan.img_w, b.plan.img_h
-    b.plan.free_x = vB.w > iw + 0.5 or b.plan.finish.w > iw + 0.5
-    b.plan.free_y = vB.h > ih + 0.5 or b.plan.finish.h > ih + 0.5
+    -- repli par défaut : vues naturelles (mouvement continu, pas de superposition forcée).
+    -- On copie (pas d'alias avec nat_*, que flip_direction pourrait ensuite intervertir).
+    copy_rect = (r) -> { k, v for k, v in pairs r }
+    a.plan.finish = copy_rect a.plan.nat_finish
+    b.plan.start = copy_rect b.plan.nat_start
+    refresh_free a.plan
+    refresh_free b.plan
+    -- Tente la coïncidence complète des visages ; renvoie true si appliquée.
+    full = ->
+      return false unless cfg.harmonize != false and a.plan.harm and b.plan.harm
+      vA, vB, ok = kenburns.joint_placement (harm_side a, a.plan.nat_finish),
+        (harm_side b, b.plan.nat_start),
+        display.aspect!, cfg.harmonize_zoom_tol or 0.25, cfg.harmonize_pos_tol or 0.15
+      return false unless ok
+      max_shift = cfg.harmonize_max_shift or 0.2
+      return false if max_shift > 0 and ((face_shift a.plan.harm, a.plan.nat_finish, vA) > max_shift or
+        (face_shift b.plan.harm, b.plan.nat_start, vB) > max_shift)
+      a.plan.finish = vA
+      b.plan.start = vB
+      refresh_free a.plan
+      refresh_free b.plan
+      true
+    align_eyes a, b unless full!
 
   -- Index suivant `base`, avec réactualisation de la liste au rebouclage sur la première.
   next_index = (base) ->
@@ -204,27 +289,52 @@ run = (paths, cfg, refresh, overrides={}) ->
   -- renonce (toutes les images sont illisibles) pour ne pas boucler indéfiniment.
   load_fail = 0
 
-  -- Précharge la première image chargeable APRÈS l'index `base` (saute les illisibles).
-  preload_from = (base) ->
-    return if nxt or submitted or n < 2
-    if use_async
-      nxt_i = next_index base
-      async.submit paths[nxt_i], cfg, rev_for(nxt_i), display.aspect!, ov(paths[nxt_i])
-      submitted = true
-    else
-      -- Synchrone : prepare bloque déjà ; on saute les images illisibles (prepare nil).
-      b = base
-      for _ = 1, n
-        i = next_index b
-        cand = prepare paths[i], cfg, rev_for(i), ov(paths[i])
-        if cand
-          nxt, nxt_i = cand, i
-          harm_pending = true
-          return
-        io.stderr\write "diapo: image illisible, ignorée : #{paths[i]}\n"
-        b = i
+  -- Première image chargeable APRÈS `base` (saute les illisibles) ; renvoie index, diapo.
+  prepare_after = (base) ->
+    b = base
+    for _ = 1, n
+      i = next_index b
+      cand = prepare paths[i], cfg, rev_for(i), ov(paths[i])
+      return i, cand if cand
+      io.stderr\write "diapo: image illisible, ignorée : #{paths[i]}\n"
+      b = i
+    nil, nil
 
-  preload_next = -> preload_from ci
+  -- Remplit la file de préchargement (profondeur 2) : `nxt` puis `nxt2`. Le worker async ne
+  -- traite qu'une requête à la fois (`submitted`) ; on enchaîne donc nxt puis nxt2 au fil des
+  -- arrivées. `nxt2` n'est préchargée qu'en lecture automatique (pas pendant une navigation
+  -- manuelle `want`, ni si moins de 3 images distinctes) : le lookahead ne sert qu'à l'harmonie.
+  fill_preload = ->
+    return if n < 2 or submitted or load_fail >= n
+    want2 = not want and n > 2
+    if use_async
+      if not nxt
+        i = next_index (nxt_i or ci)
+        async.submit paths[i], cfg, rev_for(i), display.aspect!, ov(paths[i])
+        nxt_i, sub_target, submitted = i, "nxt", true
+      elseif want2 and not nxt2
+        i = next_index (nxt2_i or nxt_i)
+        async.submit paths[i], cfg, rev_for(i), display.aspect!, ov(paths[i])
+        nxt2_i, sub_target, submitted = i, "nxt2", true
+    else
+      unless nxt
+        nxt_i, nxt = prepare_after (nxt_i or ci)
+        harm_pending = true if nxt
+      if nxt and want2 and not nxt2
+        nxt2_i, nxt2 = prepare_after nxt_i
+
+  -- Avance la file d'un cran : `nxt2` devient `nxt`. Une requête en vol qui visait `nxt2`
+  -- vise désormais `nxt` (c'est la même image, les indices ont juste décalé d'un cran).
+  shift_queue = ->
+    nxt, nxt_i = nxt2, nxt2_i
+    nxt2, nxt2_i = nil, nil
+    sub_target = "nxt" if sub_target == "nxt2"
+
+  -- Vide la file de préchargement (navigation manuelle qui rompt la séquence).
+  clear_queue = ->
+    unload_slide nxt
+    unload_slide nxt2
+    nxt, nxt_i, nxt2, nxt2_i = nil, nil, nil, nil
 
   -- État du fondu enchaîné.
   fading = false
@@ -280,21 +390,21 @@ run = (paths, cfg, refresh, overrides={}) ->
     return unless want and not fading
     if nxt and nxt_i == want          -- cible déjà prête -> transition immédiate
       t = nxt
-      nxt = nil
+      shift_queue!                    -- la suivante connue (nxt2) devient la nouvelle `nxt`
       begin_transition t, want, now
       want = nil
+      fill_preload!
     elseif not submitted              -- worker libre : (re)soumettre la cible voulue
-      if nxt and nxt_i != want
-        unload_slide nxt
-        nxt = nil
+      clear_queue!                    -- la file séquentielle ne correspond plus à la cible
       if use_async
-        nxt_i = want
+        nxt_i, sub_target, submitted = want, "nxt", true
         async.submit paths[want], cfg, rev_for(want), display.aspect!, ov(paths[want])
-        submitted = true
       else                            -- repli synchrone (bloque, mais worker indisponible)
         to = prepare paths[want], cfg, rev_for(want), ov(paths[want])
-        begin_transition to, want, now if to
-        want = nil
+        if to
+          begin_transition to, want, now
+          want = nil
+          fill_preload!
     -- sinon : worker occupé sur un autre index -> on patiente (l'image courante anime)
 
   -- Première diapo (synchrone).
@@ -307,7 +417,7 @@ run = (paths, cfg, refresh, overrides={}) ->
     async.stop! if use_async
     return
   cur_start = display.time!
-  preload_next!
+  fill_preload!
 
   -- Horloge virtuelle : le temps se fige pendant les pauses (fenêtre cachée), pour que la
   -- diapo ne « saute » pas au retour. now = temps réel - durée totale passée en pause.
@@ -354,6 +464,7 @@ run = (paths, cfg, refresh, overrides={}) ->
           fading = false
         rebuild_plan cur
         rebuild_plan nxt
+        rebuild_plan nxt2
         harm_pending = true               -- ré-harmoniser cur<->nxt au nouveau ratio
         cur_start = real - paused_total   -- relance le mouvement de la courante
         fadein_t0 = real - paused_total   -- ... avec un fondu d'apparition
@@ -406,33 +517,44 @@ run = (paths, cfg, refresh, overrides={}) ->
       want = wrap ci + 1 if go_next
       want = wrap ci - 1 if go_prev
 
-    -- Réception du préchargement asynchrone.
+    -- Réception du préchargement asynchrone (le slot rempli dépend de `sub_target`).
     if submitted
       if async.ready!
-        nxt = async.finalize cfg
+        slide = async.finalize cfg
         submitted = false
         load_fail = 0
-        harm_pending = true                  -- l'image suivante est prête : (ré)harmoniser
+        if sub_target == "nxt2"
+          nxt2 = slide
+          harm_pending = true if now <= cur_start  -- raffine l'orientation de nxt (fenêtre de 3)
+        else
+          nxt = slide
+          harm_pending = true                      -- la suivante est prête : (ré)harmoniser
       elseif async.errored!
         submitted = false
-        async.reset!                         -- libère le worker (état 3 -> 0)
+        async.reset!                               -- libère le worker (état 3 -> 0)
         load_fail += 1
-        io.stderr\write "diapo: image illisible, ignorée : #{paths[nxt_i]}\n"
-        -- on saute l'image défaillante et on précharge la suivante (sauf si toutes échouent)
-        preload_from nxt_i if load_fail < n
+        failed_i = (sub_target == "nxt2") and nxt2_i or nxt_i
+        io.stderr\write "diapo: image illisible, ignorée : #{paths[failed_i]}\n"
+        -- l'index du slot reste = failed_i : fill_preload repartira de next_index(failed_i)
 
     service_nav now      -- fait avancer une éventuelle navigation manuelle
+    fill_preload!        -- maintient la file de préchargement (nxt puis nxt2)
 
-    -- (Ré)harmonise la transition cur -> nxt dès que les deux sont disponibles. En régime
+    -- (Ré)harmonise la transition cur -> nxt dès que les deux sont disponibles, en orientant nxt
+    -- selon SES DEUX voisines quand nxt2 est connue (fenêtre de 3 -> évite le zig-zag). En régime
     -- établi, nxt est préchargée pendant le fondu, donc cur.finish est fixé avant le début du
-    -- mouvement (pas de recalage visible) ; sinon, l'ajustement survient dès l'arrivée de nxt.
-    -- On n'harmonise (donc on ne modifie cur.finish) que TANT QUE le mouvement de cur n'a pas
-    -- commencé (pendant le fondu d'entrée, cur_start est dans le futur ; idem juste après un
-    -- resize). Au-delà, on n'y touche plus : changer la cible en cours de mouvement produirait
-    -- un repositionnement brutal. Si nxt arrive trop tard, cette transition reste « naturelle ».
-    if harm_pending and cur and nxt and now <= cur_start
-      choose_direction cur, nxt    -- sans `alternate` : oriente nxt pour la meilleure harmonie
-      harmonize cur, nxt
+    -- mouvement (pas de recalage visible) ; sinon l'ajustement survient dès l'arrivée de nxt.
+    -- ORIENTER nxt (choose_direction) est toujours sûr : nxt n'est pas encore affichée, on ne
+    -- touche pas à cur. C'est notamment vrai pour la TOUTE PREMIÈRE diapo (qui démarre sans fondu,
+    -- donc cur_start est déjà passé) : sans cela, la transition 1->2 gardait le sens de baseline
+    -- (souvent « aller-aller ») au lieu d'être orientée pour l'harmonie.
+    -- HARMONISER (harmonize) modifie cur.finish : réservé au cas où cur n'a pas encore bougé
+    -- (now <= cur_start), sinon changer sa cible en cours de mouvement ferait un saut. La 1re
+    -- diapo n'est donc pas harmonisée (pas de coïncidence forcée des visages), mais son sens
+    -- d'enchaînement vers la 2e est, lui, correctement choisi.
+    if harm_pending and cur and nxt
+      choose_direction cur, nxt, nxt2   -- oriente nxt pour la meilleure harmonie (3 images)
+      harmonize cur, nxt if now <= cur_start
       harm_pending = false
 
     elapsed = now - cur_start
@@ -454,7 +576,7 @@ run = (paths, cfg, refresh, overrides={}) ->
         unload_slide fade_from
         fade_from = nil
         fading = false
-        preload_next!
+        fill_preload!
     else
       view = kenburns.at cur.plan, progress(elapsed), arc
       -- Fondu d'apparition après réadaptation à un redimensionnement.
@@ -478,13 +600,12 @@ run = (paths, cfg, refresh, overrides={}) ->
         -- Une seule image : fin de « cycle » à chaque passage -> on tente un rafraîchissement
         -- (un dossier démarré à 1 image peut ainsi récupérer les ajouts), sinon on relance.
         refresh_paths!
-        if n > 1 then preload_next! else cur_start = now
+        if n > 1 then fill_preload! else cur_start = now
       elseif nxt
         t, ti = nxt, nxt_i
-        nxt = nil
-        nxt_i = nil
+        shift_queue!      -- la suivante (nxt2) devient nxt ; une requête en vol la suit
         begin_transition t, ti, now
-        preload_next!     -- précharge la suivante PENDANT le fondu (harmonisation avant le mouvement)
+        fill_preload!     -- précharge la suite PENDANT le fondu (harmonisation avant le mouvement)
       -- sinon : la suivante n'est pas encore prête, on patiente (image figée sur sa fin)
 
   async.stop! if use_async
